@@ -69,7 +69,7 @@ class DiverseFunctionsV2:
         return xstr
 
     @staticmethod
-    def map(xstr, offset=1, n_alphabets=26):
+    def map(xstr):
         mapping_json_file = f"{ROOT_DIR}/data/jsons/mappings.json"
         with open(mapping_json_file, "r") as f:
             mapping = json.load(f)

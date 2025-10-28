@@ -1,10 +1,4 @@
-import itertools
-from collections import defaultdict
-from typing import Dict, List, Optional, Set, Tuple
-
-import networkx as nx
 import numpy as np
-import torch
 import os
 
 # Get sequence information

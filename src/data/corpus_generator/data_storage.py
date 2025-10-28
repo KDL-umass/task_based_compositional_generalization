@@ -20,36 +20,34 @@ class DataStorage:
         base_name = "nalph_{}_seqlen_{}_fnlen_{}_taskmaxlen_{}".format(
             self.cfg.n_alphabets,
             self.cfg.seq_len,
-            self.cfg.composition.n_functions,
-            self.cfg.composition.task_max_length,
+            self.cfg.n_functions,
+            self.cfg.task_max_length,
         )
         
         base_path = "{}/data/{}/{}/{}".format(
             self.root_dir,
-            self.cfg.composition.type,
+            self.cfg.function_type,
             self.cfg.prompt_length,
             base_name,
         )
         
         self.step_fdir = "{}/step_by_step/{}".format(base_path, self.dir_flag)
         self.direct_fdir = "{}/direct/{}".format(base_path, self.dir_flag)
-        self.curriculum_fdir = "{}/curriculum/{}".format(base_path, self.dir_flag)
         
         # Create directories
         os.makedirs(self.step_fdir, exist_ok=True)
-        os.makedirs(self.direct_fdir, exist_ok=True)
-        os.makedirs(self.curriculum_fdir, exist_ok=True)
+        os.makedirs(self.direct_fdir, exist_ok=True)    
         
     def setup_logging(self):
         """Initialize logging configuration."""
-        log_path = "{}/logs/{}".format(self.root_dir, self.cfg.function.type)
+        log_path = "{}/logs/{}".format(self.root_dir, self.cfg.function_type)
         os.makedirs(log_path, exist_ok=True)
         
         base_name = "nalph_{}_seqlen_{}_fnlen_{}_taskmaxlen_{}".format(
             self.cfg.n_alphabets,
             self.cfg.seq_len,
-            self.cfg.composition.n_functions,
-            self.cfg.composition.task_max_length,
+            self.cfg.n_functions,
+            self.cfg.task_max_length,
         )
         
         log_file_dir = "{}/{}/{}/{}/model_{}".format(
@@ -76,7 +74,7 @@ class DataStorage:
     
     def store_data(self, corpus, token, token_idx, functions_info):
         """Store all generated data to disk."""
-        modes = ["step_by_step", "direct", "curriculum"]
+        modes = ["step_by_step", "direct"]
         
         for mode in modes:
             mode_dir = self._get_mode_directory(mode)
@@ -89,8 +87,6 @@ class DataStorage:
             return self.step_fdir
         elif mode == "direct":
             return self.direct_fdir
-        elif mode == "curriculum":
-            return self.curriculum_fdir
     
     def _save_mode_data(self, mode, mode_dir, corpus, token, 
                        token_idx, functions_info):
@@ -123,12 +119,7 @@ class DataStorage:
         
         if mode == "step_by_step":
             cfg_copy["direct"] = False
-            cfg_copy["use_curriculum"] = False
         elif mode == "direct":
             cfg_copy["direct"] = True
-            cfg_copy["use_curriculum"] = False
-        elif mode == "curriculum":
-            cfg_copy["direct"] = True
-            cfg_copy["use_curriculum"] = True
             
         return OmegaConf.to_container(cfg_copy, resolve=True)

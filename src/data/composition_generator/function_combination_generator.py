@@ -16,7 +16,7 @@ class FunctionCombinationGenerator:
 
     def __init__(self, cfg):
         self.cfg = cfg
-        self.n_functions = cfg.composition.n_functions
+        self.n_functions = cfg.n_functions
         self.function_names = None  # Set by parent
 
     def set_function_names(self, function_names: List[str]):
@@ -76,7 +76,7 @@ class FunctionCombinationGenerator:
 
             for combo in combinations:
                 padded_combo = list(combo) + ["identity"] * (
-                    self.cfg.composition.task_max_length - len(combo)
+                    self.cfg.task_max_length - len(combo)
                 )
                 all_combinations.extend(multiset_permutations(padded_combo))
 

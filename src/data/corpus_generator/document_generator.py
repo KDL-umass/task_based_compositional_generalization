@@ -1,10 +1,7 @@
 """Document generation for different prompt types."""
 import numpy as np
 from tqdm import tqdm
-from .token_manager import TokenManager
 from .constants import VARIABLE_MAX_PROMPT_LENGTHS
-from src.data.composition_generator.compositions import CompositionsGenerator
-
 
 class DocumentGenerator:
     """Handles generation of direct, step-by-step, and curriculum documents."""
@@ -74,17 +71,7 @@ class DocumentGenerator:
     def _build_direct_document(self, task_indices, xstr1_tokens, 
                                xstr2_tokens, output_tokens):
         """Build a direct document (input -> output)."""
-        if self.cfg.function.split.strategy in ["sort", "sort_map"]:
-            return np.concatenate([
-                self.token_manager.start_idx,
-                task_indices,
-                self.token_manager.sep_idx,
-                xstr1_tokens,
-                self.token_manager.sep_idx,
-                output_tokens[-1],
-                self.token_manager.end_idx,
-            ])
-        else:
+        if self.cfg.function_type in ["diverse", "diverse2"]:
             return np.concatenate([
                 self.token_manager.start_idx,
                 task_indices,
@@ -96,21 +83,22 @@ class DocumentGenerator:
                 output_tokens[-1],
                 self.token_manager.end_idx,
             ])
-    
+        else:
+            return np.concatenate([
+                self.token_manager.start_idx,
+                task_indices,
+                self.token_manager.sep_idx,
+                xstr1_tokens,
+                self.token_manager.sep_idx,
+                output_tokens[-1],
+                self.token_manager.end_idx,
+            ])
+
     def _build_step_by_step_document(self, task_indices, xstr1_tokens,
                                      xstr2_tokens, output_tokens):
         """Build a step-by-step document (shows intermediate steps)."""
-        if self.cfg.function.split.strategy in ["sort", "sort_map"]:
-            return np.concatenate([
-                self.token_manager.start_idx,
-                task_indices,
-                self.token_manager.sep_idx,
-                xstr1_tokens,
-                self.token_manager.sep_idx,
-                output_tokens[-1],
-                self.token_manager.end_idx,
-            ])
-        else:
+        
+        if self.cfg.function_type in ["diverse", "diverse2"]:
             step_by_step_document = np.concatenate([
                 self.token_manager.start_idx,
                 task_indices,
@@ -119,20 +107,27 @@ class DocumentGenerator:
                 self.token_manager.sep_idx,
                 xstr2_tokens,
             ])
-            
-            for i in range(len(output_tokens)):
-                step_by_step_document = np.concatenate([
-                    step_by_step_document,
-                    self.token_manager.sep_idx,
-                    output_tokens[i]
-                ])
-            
+        else:
+            step_by_step_document = np.concatenate([
+                self.token_manager.start_idx,
+                task_indices,
+                self.token_manager.sep_idx,
+                xstr1_tokens,
+            ])
+        
+        for i in range(len(output_tokens)):
             step_by_step_document = np.concatenate([
                 step_by_step_document,
-                self.token_manager.end_idx
+                self.token_manager.sep_idx,
+                output_tokens[i]
             ])
-            
-            return step_by_step_document
+        
+        step_by_step_document = np.concatenate([
+            step_by_step_document,
+            self.token_manager.end_idx
+        ])
+        
+        return step_by_step_document
     
     def generate_document(self, split, train_functions, test_functions):
         """Generate documents for a specific split (train/test/train_heldout)."""

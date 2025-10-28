@@ -1,7 +1,7 @@
 """Token management for synthetic data generation."""
 import numpy as np
 import logging
-from src.data.synthetic_sequence_generator.constants import SPECIAL_TOKENS
+from src.data.corpus_generator.constants import SPECIAL_TOKENS
 import os
 
 class TokenManager:
@@ -34,6 +34,8 @@ class TokenManager:
         
         # Add function tokens
         self._add_function_tokens(sp_token_count)
+        print(self.token)
+        print(self.token_idx)
         
         # Create index arrays for quick access
         self._create_index_arrays()
@@ -44,7 +46,7 @@ class TokenManager:
     def _add_special_tokens(self):
         """Add special tokens."""
         sp_token_count = 0
-        for token in self.special_tokens:
+        for token in self.special_tokens.values():
             self.token[self.n_alphabets + sp_token_count] = token
             self.token_idx[token] = self.n_alphabets + sp_token_count
             sp_token_count += 1
@@ -60,6 +62,7 @@ class TokenManager:
     
     def _create_index_arrays(self):
         """Create numpy arrays for frequently used token indices."""
+        
         self.start_idx = np.array([self.token_idx[self.start_token]])
         self.sep_idx = np.array([self.token_idx[self.sep_token]])
         self.end_idx = np.array([self.token_idx[self.end_token]])

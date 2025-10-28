@@ -14,24 +14,24 @@ class BaseCompositionsClass:
     
     def _init_function_dict(self):
         """Initialize the function dictionary based on the configuration."""
-        if self.cfg.composition.type == "diverse":
+        if self.cfg.function_type == "diverse":
             self.function_dict = DIVERSE_FUNCTIONS
             self.mappings = None
-        elif self.cfg.composition.type == "uniform":
+        elif self.cfg.function_type == "uniform":
             self.function_dict = {
-                f"map{i}": MapRandom.map_random(seed=i).mapping
-                for i in range(1, self.cfg.composition.n_functions + 1)
+                f"map{i}": MapRandom.map_random(seed=i)
+                for i in range(1, self.cfg.n_functions + 1)
             }
             self.function_dict["identity"] = DiverseFunctionsV1.identity
             self.mappings = {
                 f"map{i}": MapRandom.map_random(seed=i).mapping
-                for i in range(1, self.cfg.composition.n_functions + 1)
+                for i in range(1, self.cfg.n_functions + 1)
             }
-        elif self.cfg.composition.type == "diverse2":
+        elif self.cfg.function_type == "diverse2":
             self.function_dict = DIVERSE_2_FUNCTIONS
             self.mappings = None
         else:
-            raise ValueError(f"Invalid composition type: {self.cfg.composition.type}")
+            raise ValueError(f"Invalid composition type: {self.cfg.function_type}")
         self.function_names = list(self.function_dict.keys())
 
     def apply_function_composition_diverse(self, function_list, xstr1, xstr2):
@@ -45,7 +45,7 @@ class BaseCompositionsClass:
                 # if the function is join or intersect, apply it to both strings
                 xstr1 = self.function_dict[function](xstr1, xstr2)
             elif function == "map":
-                xstr1 = self.function_dict[function](xstr1, self.cfg.n_alphabets)
+                xstr1 = self.function_dict[function](xstr1)
             else:
                 xstr1 = self.function_dict[function](xstr1)
 
@@ -65,12 +65,12 @@ class BaseCompositionsClass:
         return outputs
 
     def apply_function_composition(self, function_list, xstr1, xstr2=None):
-        if self.cfg.composition.type == "diverse":
+        if self.cfg.function_type == "diverse":
             return self.apply_function_composition_diverse(function_list, xstr1, xstr2)
-        elif self.cfg.composition.type == "uniform":
+        elif self.cfg.function_type == "uniform":
             return self.apply_function_composition_uniform(function_list, xstr1)
         else:
-            raise ValueError(f"Invalid function type: {self.cfg.composition.type}")
+            raise ValueError(f"Invalid function type: {self.cfg.function_type}")
 
 class CompositionsGenerator(BaseCompositionsClass):
     def __init__(self, cfg):
@@ -148,8 +148,8 @@ def main():
     cfg = read_config(cfg_path)
     cfg.prompt_length = "variable"
     cfg.split_strategy = "combination_3"
-    cfg.composition.type = "uniform"
-    cfg.composition.task_max_length = 7
+    cfg.function_type = "uniform"
+    cfg.task_max_length = 7
     # create the functions
     create_functions = CompositionsGenerator(cfg)
     train_functions, test_functions, functions_info = create_functions.get_train_test_compositions()

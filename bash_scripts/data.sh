@@ -11,12 +11,12 @@
 # done
 
 # Generate data for within-k evaluation without identity functions (as task max length=k)
-for prompt_length in "fixed"; do
-    echo "Generating data for prompt_length: $prompt_length"
+for function_type in "uniform" "diverse"; do
+    echo "Generating data for function_type: $function_type"
     for k in {2..6}; do
         echo "Generating data for combination_$k"
-        python -m scripts.generate_data --prompt_length $prompt_length --split_strategy combination_$k --n_functions 6 --task_max_length $k --n_alphabets 26 --seq_len 6 --functions_type uniform
-        # python -m scripts.generate_data --prompt_length $prompt_length --split_strategy combination_$k --n_functions 6 --task_max_length $k --n_alphabets 26 --seq_len 6 --functions_type diverse
+        
+        python3 -m scripts.generate_data --split_strategy combination_$k --task_max_length $k --function_type $function_type
     done
 done
 
