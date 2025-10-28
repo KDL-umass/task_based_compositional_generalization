@@ -20,7 +20,7 @@ from src.training.trainer import (
     update_cosine_warmup_lr,
 )
 
-ROOT_DIR = "FILL/IN/PATH/TO/SRC/DIRECTORY"
+ROOT_DIR = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization"
 
 
 def main(cfg, logger):
@@ -146,9 +146,6 @@ if __name__ == "__main__":
         "--prompt_mode", type=str, default="direct", help="step or direct"
     )
     parser.add_argument(
-        "--prompt_length", type=str, default="fixed", help="fixed or variable"
-    )
-    parser.add_argument(
         "--train_split", type=str, default="combination_6", help="Model training split"
     )
     parser.add_argument("--epochs", type=int, default=200, help="number of epochs")
@@ -182,8 +179,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     cfg = read_config(f"{ROOT_DIR}/config/train/conf.yaml")
     cfg.tag = args.prompt_mode
-    cfg.prompt_length = args.prompt_length
-    cfg.net.prompt_length = args.prompt_length
     cfg.train_split = args.train_split
     cfg.epochs = args.epochs
     cfg.task_max_length = args.task_max_length

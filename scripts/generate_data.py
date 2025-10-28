@@ -5,7 +5,7 @@ from src.data_generation.generator import SyntheticData
 from src.data_generation.generator_uniform import SyntheticDataUniform
 from src.data_generation.init import read_config, set_seed
 
-ROOT_DIR = "FILL/IN/PATH/TO/SRC/DIRECTORY"
+ROOT_DIR = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization"
 
 
 def main(cfg):

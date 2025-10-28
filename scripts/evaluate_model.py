@@ -14,7 +14,7 @@ from src.evaluation.fixed_evaluator import FixedPromptEvaluator
 from src.evaluation.variable_evaluator import VariablePromptEvaluator
 from src.models.nanogpt import nanoGPT
 
-ROOT_DIR = "FILL/IN/PATH/TO/SRC/DIRECTORY"
+ROOT_DIR = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization"
 MODELS_DIR = "FILL/IN/PATH/TO/MODELS/DIRECTORY"
 
 # see if cuda is available

@@ -18,7 +18,7 @@ from src.data_generation.functions import (
     DIVERSE_2_FUNCTIONS,
     BaseFunction,
     MapRandom,
-    apply_function_composition,
+    apply_function_composition_diverse, 
     apply_function_composition_uniform,
 )
 from src.data_generation.generator import SyntheticData
@@ -735,14 +735,14 @@ class FixedPromptEvaluator(SyntheticData):
                 filter_func = lambda x: x in "aeiou"
                 offset = 1
                 pad_length = 2 * self.eval_cfg.seq_len
-                outputs = apply_function_composition(
-                    self.eval_cfg.n_alphabets,
+                outputs = apply_function_composition_diverse(
                     single_function_list,
                     DIVERSE_FUNCTIONS if self.eval_cfg.function_type == "diverse" else DIVERSE_2_FUNCTIONS,
                     input_str1,
                     input_str2,
                     filter_func,
                     offset,
+                    self.eval_cfg.n_alphabets
                 )
 
             elif self.eval_cfg.function_type == "uniform":

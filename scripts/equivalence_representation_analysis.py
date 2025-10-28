@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from src.evaluation.tsne_plots import plot_tsne_with_equivalence_class_score, plot_tsne_with_equivalence_class_score_with_slider
 
-ROOT_DIR = "FILL/IN/PATH/TO/SRC/DIRECTORY"
+ROOT_DIR = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization"
 from src.data_generation.init import read_config
 from src.evaluation.tsne_plots import plot_tsne_with_equivalence_class_score, plot_tsne_with_equivalence_class_score_with_slider
 

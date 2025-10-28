@@ -7,7 +7,7 @@ import numpy as np
 from src.data_generation.functions import apply_function_composition_uniform
 from src.data_generation.generator import SyntheticData
 
-ROOT_DIR = "FILL/IN/PATH/TO/SRC/DIRECTORY"
+ROOT_DIR = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization"
 
 
 class SyntheticDataUniform(SyntheticData):

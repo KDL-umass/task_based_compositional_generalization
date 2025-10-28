@@ -4,6 +4,7 @@ seed: 0
 device : "cuda"
 bf16: False
 epochs: 200
+prompt_length: "fixed"
 
 data:
   num_workers: 4
@@ -12,6 +13,7 @@ data:
 net:
   compile: False
   vocab_size: 512
+  prompt_length: "fixed"
   context_size: 50
   n_layer: 3
   n_head: 6

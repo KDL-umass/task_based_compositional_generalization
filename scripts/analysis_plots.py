@@ -3,7 +3,7 @@ import sys
 
 
 
-sys.path.append("FILL/IN/PATH/TO/SRC/DIRECTORY")
+sys.path.append("/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization")
 
 from src.evaluation.plots import DataLoader, DataProcessor, Plotter
 
