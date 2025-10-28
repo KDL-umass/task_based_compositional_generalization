@@ -7,7 +7,7 @@ import torch
 import torch.nn.functional as F
 
 from src.data.loaders import get_data_loader, SyntheticDataset
-from src.data_generation.init import read_config, set_seed, ROOT_DIR
+from init import read_config, set_seed, ROOT_DIR
 from src.data.utils import get_sep_pos
 from src.models.nanogpt import nanoGPT
 from src.training.trainer import (
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     cfg.task_max_length = args.task_max_length
     cfg.data.n_alphabets_seq_len_fn_len_task_max_length = (
         "nalph_{}_seqlen_{}_fnlen_{}_taskmaxlen_{}".format(
-            args.n_alphabets, args.seq_len, args.n_functions, args.task_max_length
+            cfg.n_alphabets, cfg.seq_len, cfg.n_functions, cfg.task_max_length
         )
     )
     cfg.data.path = "{}/data/{}/{}/{}/{}/{}".format(

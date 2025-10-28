@@ -1,8 +1,20 @@
 #!/bin/bash
+#SBATCH  -t 16:00:00
+#SBATCH -p gpu
+#SBATCH --gres=gpu:1
+#SBATCH --mem 100GB
+#SBATCH --cpus-per-task 4
+#SBATCH --job-name=train_model
+#SBATCH --output=./a_logs/train_model.out
+#SBATCH --error=./a_logs/train_model.err
+module load conda/latest
+cd /project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization
+conda activate CG
+
 PROMPT_LENGTHS=("fixed")
-PROMPT_MODES=("direct" "step_by_step")
-POS_EMBEDDING_TYPES=("abs" "rel_global")
-FUNCTION_TYPES=("uniform" "diverse")
+PROMPT_MODES=("direct")
+POS_EMBEDDING_TYPES=("abs")
+FUNCTION_TYPES=("uniform")
 
 
 EPOCHS=100
@@ -10,9 +22,9 @@ N_ALPHABETS=26
 SEQ_LEN=6
 N_FUNCTIONS=6
 NHEADS_NLAYERS="nh6_nl3"
-SEEDS=(0 10 20 30 40)
+SEEDS=(0)
 
-TRAIN_SPLIT_STRATEGIES=("combination_2" "combination_3" "combination_4" "combination_5" "combination_6")
+TRAIN_SPLIT_STRATEGIES=("combination_6")
 
 # task max length is k_max and gets k from the split strategy without identity modules. Fix task_max_length to 7 for identity-based train/test split
 echo "=== TRAINING ==="
@@ -28,17 +40,12 @@ for split in "${TRAIN_SPLIT_STRATEGIES[@]}"; do
                         echo "Task max length: $TASK_MAX_LENGTH"
                         python -m scripts.train_model \
                             --prompt_mode "$mode" \
-                            --prompt_length "$length" \
                             --train_split "$split" \
                             --epochs "$EPOCHS" \
-                            --n_alphabets "$N_ALPHABETS" \
-                            --seq_len "$SEQ_LEN" \
-                            --n_functions "$N_FUNCTIONS" \
                             --pos_embedding_type "$pos_embedding_type" \
                             --n_heads_nlayers "$NHEADS_NLAYERS" \
                             --function_type "$function_type" \
-                            --task_max_length "$TASK_MAX_LENGTH" \ 
-                            --seed "$seed"
+                            --task_max_length "$TASK_MAX_LENGTH" 
                     done
                 done
             done
