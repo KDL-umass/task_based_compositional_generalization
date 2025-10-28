@@ -8,11 +8,12 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from src.data_generation.generator import get_vocab_len
+from src.data.corpus_generator.token_manager import DictionaryLoader
 
 
 def sanity_checks(cfg, loader):
-    vocab_len = get_vocab_len(cfg.data.path)
+    dictionary_loader = DictionaryLoader(cfg.data.path)
+    vocab_len = dictionary_loader.get_vocab_len()
     seq_len = loader.dataset.data.shape[1]
     print(f"vocab_len: {vocab_len}")
     print(f"seq_len: {seq_len}")

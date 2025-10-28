@@ -6,30 +6,22 @@ for task-based compositional generalization.
 """
 
 import argparse
-import json
 import logging
 import os
-from typing import Optional, Tuple
+from typing import Optional
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 from transformers import (
     get_linear_schedule_with_warmup,
 )
-import pickle
-
-from src.data_generation.generator import (
-    get_trainLoader_with_mapping,
-    get_evalLoaders_with_mapping,
-   
-)
+from init import ROOT_DIR
+from src.data.loaders import get_data_loader, MappedSyntheticDataset
+from src.data.corpus_generator.token_manager import DictionaryLoader
 from src.models.pretrained import load_llama3_8b, load_gpt_oss_20b
-
-ROOT_DIR = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization"
 
 
 class FineTuner:
@@ -114,9 +106,9 @@ class FineTuner:
     def _setup_token_mapping(self):
         """Setup mapping from synthetic vocab to model vocab."""
         # Load token mappings from data directory
-        token_idx_path = os.path.join(self.data_path, "token_idx.pkl")
-        with open(token_idx_path, "rb") as f:
-            token_idx = pickle.load(f)
+        dictionary_loader = DictionaryLoader(self.data_path)
+        token_idx = dictionary_loader.token_idx_dict
+        token = dictionary_loader.token_dict
            
         # Create mapping from synthetic indices to model tokens
         self.token_map = {}
@@ -187,12 +179,15 @@ class FineTuner:
         self.cfg.tag = self.mode
         
         # Use loaders with token mapping applied
-        train_loader = get_trainLoader_with_mapping(self.cfg, self.token_map)
-        eval_loaders = get_evalLoaders_with_mapping(self.cfg, self.token_map)
+        loaders = []
+        for split in ["train", "train_heldout", "test"]:
+            dataset = MappedSyntheticDataset(self.data_path, split=split, mode=self.mode, token_map=self.token_map)
+            loader = get_data_loader(dataset, batch_size, 4)
+            loaders.append(loader)
         
-        # eval_loaders is a list: [train_loader, test_loader, train_heldout_loader]
-        # Use test_loader (index 1) for validation
-        val_loader = eval_loaders[1]
+        train_loader = loaders[0]
+        val_loader = loaders[1]
+        test_loader = loaders[2]
 
         # Setup optimizer
         optimizer = torch.optim.AdamW(

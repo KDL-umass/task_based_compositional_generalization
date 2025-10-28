@@ -7,6 +7,7 @@ like Llama, GPT-2, etc. for fine-tuning on task-based compositional generalizati
 
 import os
 from typing import Optional
+from init import ROOT_DIR
 
 import torch
 from transformers import (
@@ -17,9 +18,6 @@ from transformers import (
 
 LLAMA3_MODEL_NAME = "meta-llama/Llama-3.1-8b"
 GPT_OSS_MODEL_NAME = "openai/gpt-oss-20b"
-ROOT_DIR = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization"
-
-
 # Set environment variables to control cache locations
 def set_cache_env_vars(model_name: str):
     """

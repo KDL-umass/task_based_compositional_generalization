@@ -6,8 +6,9 @@ import shutil
 import torch
 import torch.nn.functional as F
 
-from src.data_generation.generator import get_evalLoaders, get_sep_pos, get_trainLoader
-from src.data_generation.init import read_config, set_seed
+from src.data.loaders import get_data_loader, SyntheticDataset
+from src.data_generation.init import read_config, set_seed, ROOT_DIR
+from src.data.utils import get_sep_pos
 from src.models.nanogpt import nanoGPT
 from src.training.trainer import (
     configure_optimizers,
@@ -20,16 +21,17 @@ from src.training.trainer import (
     update_cosine_warmup_lr,
 )
 
-ROOT_DIR = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization"
-
-
 def main(cfg, logger):
     set_seed(cfg.seed)
 
-    # Get data
-    trainLoader = get_trainLoader(cfg)
-    evalLoaders = get_evalLoaders(cfg)
+    loaders = []
+    for split in ["train", "train_heldout", "test"]:
+        dataset = SyntheticDataset(cfg.data.path, split=split, mode=cfg.tag)
+        loader = get_data_loader(dataset, cfg.data.batch_size, cfg.data.num_workers)
+        loaders.append(loader)
 
+    trainLoader = loaders[0]
+    
     # Check if network is compatible with data
     sanity_checks(cfg, trainLoader)
 
@@ -40,7 +42,7 @@ def main(cfg, logger):
     # print the config
     logger.info(cfg)
 
-    train(cfg, net, (trainLoader, evalLoaders), optimizer, device, logger)
+    train(cfg, net, (trainLoader, loaders), optimizer, device, logger)
 
 
 def initialize_network_and_optimizer(cfg, device):
@@ -149,13 +151,6 @@ if __name__ == "__main__":
         "--train_split", type=str, default="combination_6", help="Model training split"
     )
     parser.add_argument("--epochs", type=int, default=200, help="number of epochs")
-    parser.add_argument(
-        "--n_alphabets", type=int, default=10, help="number of alphabets"
-    )
-    parser.add_argument("--seq_len", type=int, default=6, help="sequence length")
-    parser.add_argument(
-        "--n_functions", type=int, default=6, help="number of functions"
-    )
     parser.add_argument(
         "--pos_embedding_type", type=str, default="abs", help="abs or rel_global"
     )

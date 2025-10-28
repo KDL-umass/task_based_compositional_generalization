@@ -1,7 +1,5 @@
 """Main synthetic data generator class - refactored and modularized."""
-import argparse
-
-from init import read_config, set_seed, ROOT_DIR
+from init import read_config, ROOT_DIR
 from src.data.composition_generator.compositions import CompositionsGenerator
 from src.data.corpus_generator.token_manager import TokenManager
 from src.data.corpus_generator.document_generator import DocumentGenerator

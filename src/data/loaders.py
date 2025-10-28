@@ -61,37 +61,14 @@ class MappedSyntheticDataset:
         return dat, target
 
 
-
-def get_trainLoader(cfg, token_map=None):
-    if token_map is None:
-        dataset = SyntheticDataset(cfg.data.path, split="train", mode=cfg.tag)
-    else:
-        dataset = MappedSyntheticDataset(cfg.data.path, split="train", mode=cfg.tag, token_map=token_map)
-
+def get_data_loader(dataset, batch_size, num_workers):
+   
     dataloader = DataLoader(
         dataset,
-        batch_size=cfg.data.batch_size,
+        batch_size=batch_size,
         shuffle=True,
         pin_memory=True,
-        num_workers=cfg.data.num_workers,
+        num_workers=num_workers,
     )
     return dataloader
-
-def get_evalLoaders(cfg, token_map=None):
-    loaders = []
-    for split in ["train", "test", "train_heldout"]:
-        if token_map is None:
-            dataset = SyntheticDataset(cfg.data.path, split=split, mode=cfg.tag)
-        else:
-            dataset = MappedSyntheticDataset(cfg.data.path, split=split, mode=cfg.tag, token_map=token_map)
-        dataloader = DataLoader(
-            dataset,
-            batch_size=cfg.data.batch_size,
-            shuffle=False,
-            pin_memory=True,
-            num_workers=cfg.data.num_workers,
-        )
-        loaders.append(dataloader)
-    return loaders
-
 
