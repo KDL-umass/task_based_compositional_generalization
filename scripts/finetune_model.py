@@ -239,6 +239,7 @@ def main():
         cache_dir=args.cache_dir,
         device=args.device,
         mode=args.prompt_mode,
+        torch_dtype=args.torch_dtype,
         cfg=cfg,  # Pass config for data loading
     )
 

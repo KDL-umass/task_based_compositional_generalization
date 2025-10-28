@@ -14,10 +14,8 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
-
-ROOT_DIR = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization"
+from init import ROOT_DIR
 TRAIN_TEST_RATIO = 0.8
-
 
 class BaseSplitStrategy(ABC):
     """Base class for all split strategies."""
@@ -61,7 +59,7 @@ class CombinationRandomSplitStrategy(BaseSplitStrategy):
         self, all_functions: List[List[str]], cfg
     ) -> Tuple[List[List[str]], List[List[str]]]:
         """Split combinations randomly."""
-        K = int(cfg.function.split.strategy.split("_")[1])
+        K = int(cfg.split_strategy.split("_")[1])
         if cfg.prompt_length == "fixed":
             return self._split_fixed(all_functions, K)
         else:
@@ -115,9 +113,9 @@ class CombinationRandomSplitStrategy(BaseSplitStrategy):
 class PermutationSplitStrategy(BaseSplitStrategy):
     """Systematic permutation-based splitting."""
 
-    def __init__(self, function_names: List[str], strategy: str, cfg):
+    def __init__(self, cfg, function_names: List[str]):
         self.function_names = function_names
-        self.strategy = strategy
+        self.strategy = cfg.split_strategy
         self.cfg = cfg
         self._init_strategy_params()
 
@@ -239,7 +237,7 @@ class PermutationSplitStrategy(BaseSplitStrategy):
         ]
         relative_order_list = self._get_relative_order()
 
-        K = int(self.cfg.function.split.strategy.split("_")[1])
+        K = int(self.cfg.split_strategy.split("_")[1])
         K_max = 6
         target_K = K if K <= K_max else K_max
 
@@ -305,7 +303,7 @@ class PermutationSplitStrategy(BaseSplitStrategy):
         """Split variable-length permutations systematically."""
         relative_order_list = self._get_relative_order()
 
-        K = int(self.cfg.function.split.strategy.split("_")[1])
+        K = int(self.cfg.split_strategy.split("_")[1])
         K_max = 6
         target_K = K if K <= K_max else K_max
 
@@ -343,9 +341,9 @@ class PermutationSplitStrategy(BaseSplitStrategy):
 class EquivalenceSplitStrategy(BaseSplitStrategy):
     """Equivalence class-based splitting."""
 
-    def __init__(self, function_names: List[str], strategy: str, cfg):
+    def __init__(self, cfg, function_names: List[str]):
         self.function_names = function_names
-        self.strategy = strategy
+        self.strategy = cfg.split_strategy
         self.cfg = cfg
         self.equivalence_class_leakage = self._extract_leakage()
 
@@ -389,7 +387,7 @@ class EquivalenceSplitStrategy(BaseSplitStrategy):
         """Split fixed-length equivalence classes."""
         # First get systematic split
         permutation_strategy = PermutationSplitStrategy(
-            self.function_names, self.strategy, self.cfg
+            self.cfg, self.function_names
         )
         train_functions, test_functions = permutation_strategy._split_fixed(all_functions)
 
@@ -456,7 +454,7 @@ class EquivalenceSplitStrategy(BaseSplitStrategy):
     ) -> Tuple[List[List[str]], List[List[str]]]:
         """Split variable-length equivalence classes."""
         permutation_strategy = PermutationSplitStrategy(
-            self.function_names, self.strategy, self.cfg
+            self.cfg, self.function_names
         )
         return permutation_strategy._split_variable(all_functions)
 
@@ -464,11 +462,11 @@ class EquivalenceSplitStrategy(BaseSplitStrategy):
 class UniqueEquivalenceSplitStrategy(BaseSplitStrategy):
     """Unique equivalence class-based splitting."""
 
-    def __init__(self, function_names: List[str], strategy: str, cfg):
+    def __init__(self, cfg, function_names: List[str]):
         self.function_names = function_names
-        self.strategy = strategy
+        self.strategy = cfg.split_strategy
         self.cfg = cfg
-        split_list = strategy.split("_")
+        split_list = self.strategy.split("_")
         if len(split_list) == 4:
             self.equivalence_class_leakage = int(split_list[3])
         else:
@@ -505,7 +503,7 @@ class UniqueEquivalenceSplitStrategy(BaseSplitStrategy):
     ) -> Tuple[List[List[str]], List[List[str]]]:
         """Split fixed-length unique equivalence classes."""
         permutation_strategy = PermutationSplitStrategy(
-            self.function_names, self.strategy, self.cfg
+            self.cfg, self.function_names
         )
         train_functions, test_functions = permutation_strategy._split_fixed(all_functions)
 
@@ -572,29 +570,28 @@ class CustomSplitStrategy(BaseSplitStrategy):
         return train_functions, test_functions
 
 
-def get_split_strategy(strategy: str, function_names: List[str], cfg) -> BaseSplitStrategy:
+def get_split_strategy(cfg, function_names: List[str]) -> BaseSplitStrategy:
     """
     Factory function to get the appropriate split strategy.
 
     Args:
-        strategy: Strategy name
-        function_names: List of function names
         cfg: Configuration object
+        function_names: List of function names
 
     Returns:
         Appropriate split strategy instance
     """
-    if strategy == "random":
+    if cfg.split_strategy == "random":
         return RandomSplitStrategy()
-    elif strategy.startswith("combination"):
+    elif cfg.split_strategy.startswith("combination"):
         return CombinationRandomSplitStrategy()
-    elif strategy.startswith("permutation"):
-        return PermutationSplitStrategy(function_names, strategy, cfg)
-    elif strategy.startswith("equivalence"):
-        return EquivalenceSplitStrategy(function_names, strategy, cfg)
-    elif strategy.startswith("uniequivalence"):
-        return UniqueEquivalenceSplitStrategy(function_names, strategy, cfg)
-    elif strategy.startswith("custom"):
+    elif cfg.split_strategy.startswith("permutation"):
+        return PermutationSplitStrategy(cfg, function_names)
+    elif cfg.split_strategy.startswith("equivalence"):
+        return EquivalenceSplitStrategy(cfg, function_names)
+    elif cfg.split_strategy.startswith("uniequivalence"):   
+        return UniqueEquivalenceSplitStrategy(cfg, function_names)
+    elif cfg.split_strategy.startswith("custom"):
         return CustomSplitStrategy()
     else:
-        raise ValueError(f"Unknown split strategy: {strategy}")
+        raise ValueError(f"Unknown split strategy: {cfg.split_strategy}")

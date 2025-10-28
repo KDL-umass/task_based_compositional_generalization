@@ -78,12 +78,12 @@ class PretrainedModelLoader:
         self.tokenizer = None
         self.config = None
 
-    def load_model_and_tokenizer(self, torch_dtype=torch.float16):
+    def load_model_and_tokenizer(self, torch_dtype=torch.bfloat16):
         """
         Load the model and tokenizer from HuggingFace.
 
         Args:
-            torch_dtype: Data type for the model (default: float16 for efficiency)
+            torch_dtype: Data type for the model (default: bfloat16 for efficiency)
 
         Returns:
             Tuple of (model, tokenizer, config)
@@ -190,25 +190,11 @@ class PretrainedModelLoader:
             ),
         }
 
-    def resize_token_embeddings(self, new_size: int):
-        """
-        Resize token embeddings to accommodate a different vocabulary size.
-
-        Args:
-            new_size: New vocabulary size
-        """
-        if self.model is None:
-            raise ValueError("Model not loaded yet")
-
-        self.model.resize_token_embeddings(new_size)
-        print(f"Resized token embeddings to {new_size}")
-
-
 def load_pretrained_model(
     model_name: str = "meta-llama/Llama-3.1-8b",
     cache_dir: Optional[str] = None,
     device: str = "cuda",
-    torch_dtype=torch.float16,
+    torch_dtype=torch.bfloat16,
     **kwargs,
 ):
     """
@@ -234,7 +220,7 @@ def load_pretrained_model(
     return model, tokenizer, config
 
 
-def load_llama3_8b(device: str = "cuda", cache_dir: Optional[str] = None):
+def load_llama3_8b(device: str = "cuda", cache_dir: Optional[str] = None, torch_dtype=torch.bfloat16):
     """
     Load Llama 3 8B model from local path.
 
@@ -249,11 +235,11 @@ def load_llama3_8b(device: str = "cuda", cache_dir: Optional[str] = None):
         model_name=LLAMA3_MODEL_NAME,
         cache_dir=cache_dir,
         device=device,
-        torch_dtype=torch.float16,
+        torch_dtype=torch_dtype,
     )
 
 
-def load_gpt_oss_20b(device: str = "cuda", cache_dir: Optional[str] = None):
+def load_gpt_oss_20b(device: str = "cuda", cache_dir: Optional[str] = None, torch_dtype=torch.bfloat16):
     """
     Load GPT OSS 20B model from local path.
 
@@ -268,7 +254,7 @@ def load_gpt_oss_20b(device: str = "cuda", cache_dir: Optional[str] = None):
         model_name=GPT_OSS_MODEL_NAME,
         cache_dir=cache_dir,
         device=device,
-        torch_dtype=torch.float16,
+        torch_dtype=torch_dtype,
     )
 
 

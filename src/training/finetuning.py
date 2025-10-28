@@ -43,6 +43,7 @@ class FineTuner:
         cache_dir: Optional[str] = None,
         device: str = "cuda",
         mode: str = "direct",
+        torch_dtype: str = "bfloat16",
         cfg=None,
     ):
         """
@@ -64,7 +65,14 @@ class FineTuner:
         self.device = device
         self.mode = mode
         self.cfg = cfg
-
+        if torch_dtype == "bfloat16":
+            self.torch_dtype = torch.bfloat16
+        elif torch_dtype == "float16":
+            self.torch_dtype = torch.float16
+        elif torch_dtype == "float32":
+            self.torch_dtype = torch.float32
+        else:
+            raise ValueError(f"Unknown torch dtype: {torch_dtype}")
         # Create output directory
         os.makedirs(self.output_dir, exist_ok=True)
 
@@ -93,9 +101,9 @@ class FineTuner:
         """Load the pretrained model and tokenizer."""
         self.logger.info(f"Loading model: {self.model_name}")
         if self.model_name == "llama3":
-            self.model, self.tokenizer, self.config = load_llama3_8b()
+            self.model, self.tokenizer, self.config = load_llama3_8b(torch_dtype=self.torch_dtype)
         elif self.model_name == "gpt":
-            self.model, self.tokenizer, self.config = load_gpt_oss_20b()
+            self.model, self.tokenizer, self.config = load_gpt_oss_20b(torch_dtype=self.torch_dtype)
         else:
             raise ValueError(f"Unknown model name: {self.model_name}")
 
@@ -330,10 +338,12 @@ def main():
     parser.add_argument(
         "--cache_dir", type=str, default=None, help="Model cache directory"
     )
-
+    parser.add_argument("--torch_dtype", type=str, default="bfloat16", choices=["float16", "float32", "bfloat16"], help="Data type for the model")  
     args = parser.parse_args()
 
     # Create fine-tuner
+    torch_dtype = getattr(torch, args.torch_dtype)
+    print(f"Using torch dtype: {torch_dtype}")
     finetuner = FineTuner(
         model_name=args.model_name,
         data_path=args.data_path,
@@ -341,6 +351,7 @@ def main():
         cache_dir=args.cache_dir,
         device=args.device,
         mode=args.mode,
+        torch_dtype=torch_dtype,
     )
 
     # Load model

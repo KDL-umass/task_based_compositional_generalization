@@ -6,28 +6,27 @@ import os
 import pickle
 
 import numpy as np
-import torch
-import torch.nn.functional as F
 from omegaconf import OmegaConf
-from torch.utils.data import DataLoader
-from tqdm import tqdm
 
-from src.data_generation.functions import CreateFunctions, apply_function_composition_diverse
-from src.data_generation.init import read_config
-
-ROOT_DIR = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization"
+from src.data_generation.composition_generator.compositions import CompositionsGenerator
+from init import read_config, set_seed, ROOT_DIR
 VARIABLE_MAX_PROMPT_LENGHTS = {"direct": 40, "curriculum": 40, "step_by_step": 102}
 
-
-class SyntheticData:
+class SyntheticDataGenerator:
     """
-    Generates a synthetic sequence of the form
-     t, x, t(x)
+    Generates a synthetic composition of the form
+     f1, f2, ..., fn, x, f1(x), f2(x), ..., fn(x)
     """
 
     def __init__(
         self, cfg, train_functions, test_functions, function_dict, functions_info
     ):
+        self._setup_basic_config(cfg, train_functions, test_functions, function_dict, functions_info)
+        self._setup_directory_paths()
+        self._setup_logging()
+
+    def _setup_basic_config(self, cfg, train_functions, test_functions, function_dict, functions_info):
+        """Initialize basic configuration and tokens."""
         self.cfg = cfg
         self.n_alphabets = cfg.n_alphabets
         self.seq_len = cfg.seq_len
@@ -49,6 +48,9 @@ class SyntheticData:
         self.function_dict = function_dict
         self.functions_info = functions_info
         self.dir_flag = self.cfg.function.split.strategy
+
+    def _setup_directory_paths(self):
+        """Compute directory paths and create necessary directories."""
         self.n_alphabets_seq_len_fn_len_task_max_length = (
             "nalph_{}_seqlen_{}_fnlen_{}_taskmaxlen_{}".format(
                 self.n_alphabets,
@@ -81,7 +83,9 @@ class SyntheticData:
         os.makedirs(self.step_fdir, exist_ok=True)
         os.makedirs(self.direct_fdir, exist_ok=True)
         os.makedirs(self.curriculum_fdir, exist_ok=True)
-        # Initialize logger
+
+    def _setup_logging(self):
+        """Initialize logging configuration."""
         log_path = "{}/logs/{}".format(ROOT_DIR, self.cfg.function.type)
         os.makedirs(log_path, exist_ok=True)
         self.logger = logging.getLogger(__name__)
@@ -96,7 +100,7 @@ class SyntheticData:
         print("log_file_dir", log_file_dir)
         print("data_dir", self.direct_fdir)
         os.makedirs(log_file_dir, exist_ok=True)
-        # Set up logging configuration
+        
         logging.basicConfig(
             filename="{}/data.log".format(log_file_dir),
             level=logging.INFO,
@@ -711,202 +715,14 @@ class SyntheticData:
             json.dump(config_dict, open(mode_dir + "/config.json", "w"), indent=4)
 
 
-class SyntheticDataset:
-    """
-    Dataset object to create a dataloader
-    """
-
-    def __init__(self, fpath, split="train", mode="step_by_step"):
-        datafiles = {
-            "train": os.path.join(fpath, "train_{}_corpus.npy".format(mode)),
-            "test": os.path.join(fpath, "test_{}_corpus.npy".format(mode)),
-            "train_heldout": os.path.join(
-                fpath, "train_heldout_{}_corpus.npy".format(mode)
-            ),
-        }
-
-        self.data = np.load(datafiles[split])
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        elem = torch.from_numpy(self.data[idx])
-        dat, target = elem[:-1], elem[1:]
-        return dat, target
 
 
-def get_trainLoader(cfg):
-    dataset = SyntheticDataset(cfg.data.path, split="train", mode=cfg.tag)
-    # print sample data, target
-    data, target = dataset[0]
-    print("Sample data: ", data)
-    print("Sample data shape: ", data.shape)
-    print("Sample target: ", target)
-    print("Sample target shape: ", target.shape)
-
-    dataloader = DataLoader(
-        dataset,
-        batch_size=cfg.data.batch_size,
-        shuffle=True,
-        pin_memory=True,
-        num_workers=cfg.data.num_workers,
-    )
-    return dataloader
 
 
-def get_evalLoaders(cfg):
-    loaders = []
-    for split in ["train", "test", "train_heldout"]:
-        dataset = SyntheticDataset(cfg.data.path, split=split, mode=cfg.tag)
-        dataloader = DataLoader(
-            dataset,
-            batch_size=cfg.data.batch_size,
-            shuffle=False,
-            pin_memory=True,
-            num_workers=cfg.data.num_workers,
-        )
-        loaders.append(dataloader)
-    return loaders
 
 
-class MappedSyntheticDataset:
-    """
-    Dataset wrapper that applies token mapping transformation to convert 
-    synthetic vocab indices to model vocab indices.
-    """
-
-    def __init__(self, fpath, split="train", mode="step_by_step", token_map=None):
-        datafiles = {
-            "train": os.path.join(fpath, "train_{}_corpus.npy".format(mode)),
-            "test": os.path.join(fpath, "test_{}_corpus.npy".format(mode)),
-            "train_heldout": os.path.join(
-                fpath, "train_heldout_{}_corpus.npy".format(mode)
-            ),
-        }
-
-        self.data = np.load(datafiles[split])
-        self.token_map = token_map
-        
-        if token_map is None:
-            raise ValueError("token_map must be provided to MappedSyntheticDataset")
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        elem = torch.from_numpy(self.data[idx])
-        dat, target = elem[:-1], elem[1:]
-        
-        # Apply token mapping transformation
-        # Convert to numpy first if needed for cleaner indexing
-        if isinstance(dat, torch.Tensor):
-            dat_np = dat.numpy()
-            target_np = target.numpy()
-            dat = torch.tensor([self.token_map[int(idx)] for idx in dat_np])
-            target = torch.tensor([self.token_map[int(idx)] for idx in target_np])
-        else:
-            # dat = torch.tensor([self.token_map[token] for token in dat], dtype=torch.long)
-            # target = torch.tensor([self.token_map[token] for token in target], dtype=torch.long)
-            dat = torch.from_numpy([self.token_map[int(idx)] for idx in dat_np])
-            target = torch.from_numpy([self.token_map[int(idx)] for idx in target_np])
-        
-        return dat, target
 
 
-def get_trainLoader_with_mapping(cfg, token_map):
-    """
-    Get training data loader with token mapping applied.
-    
-    Args:
-        cfg: Configuration object
-        token_map: Dictionary mapping synthetic vocab indices to model vocab indices
-        
-    Returns:
-        DataLoader with transformed data
-    """
-    dataset = MappedSyntheticDataset(cfg.data.path, split="train", mode=cfg.tag, token_map=token_map)
-    # print sample data, target
-    data, target = dataset[0]
-    print("Sample data: ", data)
-    print("Sample data shape: ", data.shape)
-    print("Sample target: ", target)
-    print("Sample target shape: ", target.shape)
-
-    dataloader = DataLoader(
-        dataset,
-        batch_size=cfg.data.batch_size,
-        shuffle=True,
-        pin_memory=True,
-        num_workers=cfg.data.num_workers,
-    )
-    return dataloader
-
-
-def get_evalLoaders_with_mapping(cfg, token_map):
-    """
-    Get evaluation data loaders with token mapping applied.
-    
-    Args:
-        cfg: Configuration object
-        token_map: Dictionary mapping synthetic vocab indices to model vocab indices
-        
-    Returns:
-        List of DataLoaders [train_loader, test_loader, train_heldout_loader]
-    """
-    loaders = []
-    for split in ["train", "test", "train_heldout"]:
-        dataset = MappedSyntheticDataset(cfg.data.path, split=split, mode=cfg.tag, token_map=token_map)
-        dataloader = DataLoader(
-            dataset,
-            batch_size=cfg.data.batch_size,
-            shuffle=False,
-            pin_memory=True,
-            num_workers=cfg.data.num_workers,
-        )
-        loaders.append(dataloader)
-    return loaders
-
-
-def get_vocab_len(fpath):
-    token = np.load(os.path.join(fpath, "token.pkl"), allow_pickle=True)
-    return len(token)
-
-
-def get_sep_pos(fpath, loader):
-    token_idx = np.load(os.path.join(fpath, "token_idx.pkl"), allow_pickle=True)
-    sep_idx = token_idx["<SEP>"]
-    sep_pos = np.where(loader.dataset.data[0] == sep_idx)[0][-1]
-    return sep_pos
-
-
-def get_seq_info(fpath, loader, function_type):
-    token_idx = np.load(os.path.join(fpath, "token_idx.pkl"), allow_pickle=True)
-
-    seq_info = {}
-    data_cfg = json.load(open(os.path.join(fpath, "config.json"), "r"))
-    sep_idx = token_idx["<SEP>"]
-    sample = loader.dataset.data[0]
-    total_len = len(sample)
-
-    if (not data_cfg["direct"]) and (not data_cfg["use_curriculum"]):
-        # find all the positions of the sep token
-        sep_pos = np.where(sample == sep_idx)[0]
-        # find the position of last sep token
-        last_sep_pos = sep_pos[-1]
-        # find the position of the third sep token
-        if function_type == "uniform":
-            third_sep_pos = sep_pos[1]
-        else:
-            third_sep_pos = sep_pos[2]
-        print("Sep positions: ", sep_pos)
-        # find the position of the first sep token
-        print("Last sep position: ", last_sep_pos)
-        print("Third sep position: ", third_sep_pos)
-        seq_info["last_sep_pos"] = last_sep_pos
-        seq_info["prompt_pos_end"] = third_sep_pos + 1
-        seq_info["new_len"] = total_len - seq_info["prompt_pos_end"]
-    return seq_info
 
 
 if __name__ == "__main__":
