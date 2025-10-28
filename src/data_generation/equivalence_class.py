@@ -10,7 +10,7 @@ from src.data_generation.functions import (
     DIVERSE_FUNCTIONS,
     BaseFunction,
     MapRandom,
-    apply_function_composition,
+    apply_function_composition_diverse,
     apply_function_composition_uniform,
 )
 from src.data_generation.init import read_config
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler())
 
-ROOT_DIR = "FILL/IN/PATH/TO/SRC/DIRECTORY"
+ROOT_DIR = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization"
 from src.data_generation.utils import *
 
 
@@ -67,14 +67,14 @@ def make_config(prompt_mode, prompt_length, function_type, task_max_length):
 def get_outputs(function_list, input_str_1, input_str_2, n_alphabets):
     filter_func = lambda x: x in "aeiou"
     offset = 1
-    outputs = apply_function_composition(
-        n_alphabets,
+    outputs = apply_function_composition_diverse(
         function_list,
         DIVERSE_FUNCTIONS,
         input_str_1,
         input_str_2,
         filter_func,
         offset,
+        n_alphabets,
     )
     return outputs
 

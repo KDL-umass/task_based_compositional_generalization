@@ -12,10 +12,10 @@ from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from src.data_generation.functions import CreateFunctions, apply_function_composition
+from src.data_generation.functions import CreateFunctions, apply_function_composition_diverse
 from src.data_generation.init import read_config
 
-ROOT_DIR = "FILL/IN/PATH/TO/SRC/DIRECTORY"
+ROOT_DIR = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization"
 VARIABLE_MAX_PROMPT_LENGHTS = {"direct": 40, "curriculum": 40, "step_by_step": 102}
 
 
@@ -261,14 +261,14 @@ class SyntheticData:
         for function_list_copy in function_lists:
             curriculum_function_list.append(function_list_copy)
             # apply the function to the string
-            outputs = apply_function_composition(
-                self.cfg.n_alphabets,
+            outputs = apply_function_composition_diverse(
                 function_list_copy,
                 self.function_dict,
                 xstr1,
                 xstr2,
                 filter_func,
                 offset,
+                self.cfg.n_alphabets,
             )
 
             # add padding to the outputs if the length is less than the 2*sequence length
@@ -331,14 +331,14 @@ class SyntheticData:
         for function_list_copy in function_lists:
             curriculum_function_list.append(function_list_copy)
             # apply the function to the string
-            outputs = apply_function_composition(
-                self.cfg.n_alphabets,
+            outputs = apply_function_composition_diverse(
                 function_list_copy,
                 self.function_dict,
                 xstr1,
                 xstr2,
                 filter_func,
                 offset,
+                self.cfg.n_alphabets
             )
 
             output_list.append(outputs)
@@ -407,14 +407,14 @@ class SyntheticData:
         task_indices = self.get_task_tokens(function_list)
 
         # apply the function to the string
-        outputs = apply_function_composition(
-            self.cfg.n_alphabets,
+        outputs = apply_function_composition_diverse(
             function_list,
             self.function_dict,
             xstr1,
             xstr2,
             filter_func,
             offset,
+            self.cfg.n_alphabets
         )
         # add padding to the outputs if the length is less than the 2*sequence length
         pad_length = 2 * self.seq_len
@@ -759,6 +759,104 @@ def get_evalLoaders(cfg):
     loaders = []
     for split in ["train", "test", "train_heldout"]:
         dataset = SyntheticDataset(cfg.data.path, split=split, mode=cfg.tag)
+        dataloader = DataLoader(
+            dataset,
+            batch_size=cfg.data.batch_size,
+            shuffle=False,
+            pin_memory=True,
+            num_workers=cfg.data.num_workers,
+        )
+        loaders.append(dataloader)
+    return loaders
+
+
+class MappedSyntheticDataset:
+    """
+    Dataset wrapper that applies token mapping transformation to convert 
+    synthetic vocab indices to model vocab indices.
+    """
+
+    def __init__(self, fpath, split="train", mode="step_by_step", token_map=None):
+        datafiles = {
+            "train": os.path.join(fpath, "train_{}_corpus.npy".format(mode)),
+            "test": os.path.join(fpath, "test_{}_corpus.npy".format(mode)),
+            "train_heldout": os.path.join(
+                fpath, "train_heldout_{}_corpus.npy".format(mode)
+            ),
+        }
+
+        self.data = np.load(datafiles[split])
+        self.token_map = token_map
+        
+        if token_map is None:
+            raise ValueError("token_map must be provided to MappedSyntheticDataset")
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        elem = torch.from_numpy(self.data[idx])
+        dat, target = elem[:-1], elem[1:]
+        
+        # Apply token mapping transformation
+        # Convert to numpy first if needed for cleaner indexing
+        if isinstance(dat, torch.Tensor):
+            dat_np = dat.numpy()
+            target_np = target.numpy()
+            dat = torch.tensor([self.token_map[int(idx)] for idx in dat_np])
+            target = torch.tensor([self.token_map[int(idx)] for idx in target_np])
+        else:
+            # dat = torch.tensor([self.token_map[token] for token in dat], dtype=torch.long)
+            # target = torch.tensor([self.token_map[token] for token in target], dtype=torch.long)
+            dat = torch.from_numpy([self.token_map[int(idx)] for idx in dat_np])
+            target = torch.from_numpy([self.token_map[int(idx)] for idx in target_np])
+        
+        return dat, target
+
+
+def get_trainLoader_with_mapping(cfg, token_map):
+    """
+    Get training data loader with token mapping applied.
+    
+    Args:
+        cfg: Configuration object
+        token_map: Dictionary mapping synthetic vocab indices to model vocab indices
+        
+    Returns:
+        DataLoader with transformed data
+    """
+    dataset = MappedSyntheticDataset(cfg.data.path, split="train", mode=cfg.tag, token_map=token_map)
+    # print sample data, target
+    data, target = dataset[0]
+    print("Sample data: ", data)
+    print("Sample data shape: ", data.shape)
+    print("Sample target: ", target)
+    print("Sample target shape: ", target.shape)
+
+    dataloader = DataLoader(
+        dataset,
+        batch_size=cfg.data.batch_size,
+        shuffle=True,
+        pin_memory=True,
+        num_workers=cfg.data.num_workers,
+    )
+    return dataloader
+
+
+def get_evalLoaders_with_mapping(cfg, token_map):
+    """
+    Get evaluation data loaders with token mapping applied.
+    
+    Args:
+        cfg: Configuration object
+        token_map: Dictionary mapping synthetic vocab indices to model vocab indices
+        
+    Returns:
+        List of DataLoaders [train_loader, test_loader, train_heldout_loader]
+    """
+    loaders = []
+    for split in ["train", "test", "train_heldout"]:
+        dataset = MappedSyntheticDataset(cfg.data.path, split=split, mode=cfg.tag, token_map=token_map)
         dataloader = DataLoader(
             dataset,
             batch_size=cfg.data.batch_size,

@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.lines import Line2D
 
-ROOT_DIR = "FILL/IN/PATH/TO/SRC/DIRECTORY"
+ROOT_DIR = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization"
 
 
 class DataLoader:

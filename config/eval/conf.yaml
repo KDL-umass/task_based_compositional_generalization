@@ -4,3 +4,17 @@ nckpts: 20        # Number of checkpoints to evaluate
 
 nsamples: 10000     # Number of samples to evaluate (per function composition)
 nbatch: 1000        # Batch-size  = nbatch * nsamples
+
+prompt_length: "fixed"  # 'fixed' or 'variable'
+max_task_length: 2
+with_replacement: False
+n_alphabets: 26
+seq_len: 6
+model_split: "combination_6"
+eval_split: "combination_6"
+
+function:
+  type: "diverse"
+  n_functions: 6
+  split:
+    strategy: "combination_6"
