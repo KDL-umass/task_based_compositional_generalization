@@ -20,12 +20,6 @@ LLAMA3_MODEL_NAME = "meta-llama/Llama-3.1-8b"
 GPT_OSS_MODEL_NAME = "openai/gpt-oss-20b"
 # Set environment variables to control cache locations
 def set_cache_env_vars(model_name: str):
-    """
-    Set environment variables to force HuggingFace to use the specified cache directory.
-    
-    Args:
-        cache_dir: Directory to cache models
-    """
     # Set HF_HOME to control all HuggingFace cache locations
     if model_name == LLAMA3_MODEL_NAME:
         postfix = "llama3"
@@ -43,8 +37,6 @@ def set_cache_env_vars(model_name: str):
 
 
 class PretrainedModelLoader:
-    """Load pretrained language models from HuggingFace."""
-
     def __init__(
         self,
         model_name: str = LLAMA3_MODEL_NAME,
@@ -52,15 +44,6 @@ class PretrainedModelLoader:
         device: str = "cuda",
         **model_kwargs,
     ):
-        """
-        Initialize the pretrained model loader.
-
-        Args:
-            model_name: HuggingFace model name or path
-            cache_dir: Directory to cache downloaded models
-            device: Device to load model on ('cuda' or 'cpu')
-            **model_kwargs: Additional arguments to pass to model loading
-        """
         self.model_name = model_name
             
         self.cache_dir = cache_dir or os.path.join(ROOT_DIR, "cache", "models")
@@ -77,15 +60,6 @@ class PretrainedModelLoader:
         self.config = None
 
     def load_model_and_tokenizer(self, torch_dtype=torch.bfloat16):
-        """
-        Load the model and tokenizer from HuggingFace.
-
-        Args:
-            torch_dtype: Data type for the model (default: bfloat16 for efficiency)
-
-        Returns:
-            Tuple of (model, tokenizer, config)
-        """
         print(f"Loading model: {self.model_name}")
         print(f"Using device: {self.device}")
         print(f"Using dtype: {torch_dtype}")
@@ -145,15 +119,6 @@ class PretrainedModelLoader:
         return self.model, self.tokenizer, self.config
 
     def count_parameters(self, trainable_only: bool = False) -> int:
-        """
-        Count the number of parameters in the model.
-
-        Args:
-            trainable_only: If True, only count trainable parameters
-
-        Returns:
-            Number of parameters
-        """
         if self.model is None:
             return 0
 
@@ -163,12 +128,6 @@ class PretrainedModelLoader:
             return sum(p.numel() for p in self.model.parameters())
 
     def get_model_info(self) -> dict:
-        """
-        Get information about the loaded model.
-
-        Returns:
-            Dictionary with model information
-        """
         if self.model is None:
             return {}
 
@@ -195,19 +154,6 @@ def load_pretrained_model(
     torch_dtype=torch.bfloat16,
     **kwargs,
 ):
-    """
-    Convenience function to load a pretrained model.
-
-    Args:
-        model_name: HuggingFace model name
-        cache_dir: Directory to cache downloaded models
-        device: Device to load model on
-        torch_dtype: Data type for the model
-        **kwargs: Additional arguments for model loading
-
-    Returns:
-        Tuple of (model, tokenizer, config)
-    """
     loader = PretrainedModelLoader(
         model_name=model_name, cache_dir=cache_dir, device=device, **kwargs
     )
@@ -219,16 +165,6 @@ def load_pretrained_model(
 
 
 def load_llama3_8b(device: str = "cuda", cache_dir: Optional[str] = None, torch_dtype=torch.bfloat16):
-    """
-    Load Llama 3 8B model from local path.
-
-    Args:
-        device: Device to load model on
-        cache_dir: Directory to cache downloaded models
-
-    Returns:
-        Tuple of (model, tokenizer, config)
-    """
     return load_pretrained_model(
         model_name=LLAMA3_MODEL_NAME,
         cache_dir=cache_dir,
@@ -238,16 +174,6 @@ def load_llama3_8b(device: str = "cuda", cache_dir: Optional[str] = None, torch_
 
 
 def load_gpt_oss_20b(device: str = "cuda", cache_dir: Optional[str] = None, torch_dtype=torch.bfloat16):
-    """
-    Load GPT OSS 20B model from local path.
-
-    Args:
-        device: Device to load model on
-        cache_dir: Directory to cache downloaded models
-
-    Returns:
-        Tuple of (model, tokenizer, config)
-    """
     return load_pretrained_model(
         model_name=GPT_OSS_MODEL_NAME,
         cache_dir=cache_dir,

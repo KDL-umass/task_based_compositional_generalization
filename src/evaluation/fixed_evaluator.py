@@ -1,36 +1,16 @@
-import importlib.util
 import json
 import logging
 import os
 import pickle
-import sys
+
 from collections import Counter, defaultdict
 from multiprocessing import Pool, cpu_count
 
 import numpy as np
 import torch
 from omegaconf import OmegaConf
-from torch.nn.utils.rnn import pad_sequence
-from torch.utils.data import DataLoader
 
-from src.data_generation.functions import (
-    DIVERSE_FUNCTIONS,
-    DIVERSE_2_FUNCTIONS,
-    BaseFunction,
-    MapRandom,
-    apply_function_composition_diverse, 
-    apply_function_composition_uniform,
-)
-from src.data_generation.generator import SyntheticData
-from src.data_generation.utils import *
-from src.evaluation.representation import (
-    RepresentationExtractor,
-    perform_tsne_and_visualize,
-    save_representation_results,
-)
-
-
-class FixedPromptEvaluator(SyntheticData):
+class FixedPromptEvaluator:
     def __init__(self, eval_cfg, net_cfg, nbatch, log_path):
         self._setup_logging(eval_cfg, log_path)
         self._load_data(eval_cfg)

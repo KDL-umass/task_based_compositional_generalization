@@ -204,9 +204,7 @@ def evaluate_freegen(net, evalLoaders, seq_info, device_info, lstm=False):
 
 
 @torch.no_grad()
-def generate(net, inp, max_new_tokens, lstm):
-    if lstm:
-        net.hidden = None
+def generate(net, inp, max_new_tokens):
     for _ in range(max_new_tokens):
         logits = net(inp)
         logits = logits[:, -1, :]

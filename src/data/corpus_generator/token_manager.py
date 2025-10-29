@@ -124,3 +124,9 @@ class DictionaryLoader:
 
     def get_vocab_len(self):
         return len(self.token_idx_dict)
+
+    def get_sep_pos(self, sample):
+        """Get the position of the last separator token in the sample."""
+        sep_idx = self.token_idx_dict[SPECIAL_TOKENS["SEP"]]
+        sep_pos = np.where(sample == sep_idx)[0][-1]
+        return sep_pos

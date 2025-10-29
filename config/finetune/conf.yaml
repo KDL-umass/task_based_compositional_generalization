@@ -1,0 +1,37 @@
+# Location to store checkpoints
+seed: 0
+
+prompt_length: 'fixed'  # 'fixed' or 'variable'
+n_alphabets: 26        # Total number of tokens "a-z" + " "
+seq_len: 6              # Length of tokens in data prompt
+n_functions: 6  # Number of maximum functions per composition
+model_name: "llama3"
+device : "cuda"
+bf16: True
+epochs: 3
+data_path: "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization/data/uniform/fixed/nalph_26_seqlen_6_fnlen_6_taskmaxlen_3/direct/combination_3"
+output_dir: "./checkpoints/llama3"
+
+
+
+num_workers: 4
+batch_size: 1
+
+net:
+  compile: False
+  prompt_length: "fixed"
+
+optimizer:
+  learning_rate: 2e-5
+  weight_decay: 0.1
+  beta1: 0.9
+  beta2: 0.95
+  grad_clip: 1.0
+
+  decay_lr: True
+  warmup_iters: 2000
+  min_lr: 0.000006
+
+log: 
+  eval_interval: 5000
+  log_interval: 50
