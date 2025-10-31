@@ -55,8 +55,8 @@ class MappedSyntheticDataset:
         elem = torch.from_numpy(self.data[idx])
         dat, target = elem[:-1], elem[1:]
         
-        dat = torch.from_numpy([self.token_map[int(idx)] for idx in dat])
-        target = torch.from_numpy([self.token_map[int(idx)] for idx in target])
+        dat = torch.from_numpy(np.array([self.token_map[int(idx)] for idx in dat]))
+        target = torch.from_numpy(np.array([self.token_map[int(idx)] for idx in target]))
     
         return dat, target
 

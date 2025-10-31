@@ -8,6 +8,7 @@ like Llama, GPT-2, etc. for fine-tuning on task-based compositional generalizati
 import os
 from typing import Optional
 from init import ROOT_DIR
+from pathlib import Path
 
 import torch
 from transformers import (
@@ -18,6 +19,7 @@ from transformers import (
 
 LLAMA3_MODEL_NAME = "meta-llama/Llama-3.1-8b"
 GPT_OSS_MODEL_NAME = "openai/gpt-oss-20b"
+GRANITE_MODEL_NAME = "ibm-granite/granite-3.1-2b-base"
 # Set environment variables to control cache locations
 def set_cache_env_vars(model_name: str):
     # Set HF_HOME to control all HuggingFace cache locations
@@ -25,16 +27,19 @@ def set_cache_env_vars(model_name: str):
         postfix = "llama3"
     elif model_name == GPT_OSS_MODEL_NAME:
         postfix = "gpt"
+    elif model_name == GRANITE_MODEL_NAME:
+        postfix = "ibm-granite"
     else:
         raise ValueError(f"Unknown model name: {model_name}")
     
-    os.environ['HF_HOME'] = f"/datasets/ai/{postfix}"
-    os.environ['HF_DATASETS_CACHE'] = os.path.join(ROOT_DIR, postfix)
-    os.environ['TRANSFORMERS_CACHE'] = os.path.join(ROOT_DIR, postfix, 'transformers')
-    os.environ['HF_HUB_CACHE'] = os.path.join(ROOT_DIR, postfix, 'hub')
+    cache_dir = Path( str(ROOT_DIR) + f".cache/huggingface")
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    os.environ['HF_HOME'] = str(cache_dir)
+    os.environ['TRANSFORMERS_CACHE'] = str(cache_dir / "transformers")
+    os.environ['HF_DATASETS_CACHE'] = str(cache_dir / "datasets")
+    os.environ['TMPDIR'] = str(cache_dir / "tmp")
 
-    print(f"Set cache environment variables to: {ROOT_DIR}")
-
+    print(f"Set cache environment variables to: {cache_dir}")
 
 class PretrainedModelLoader:
     def __init__(
@@ -45,7 +50,6 @@ class PretrainedModelLoader:
         **model_kwargs,
     ):
         self.model_name = model_name
-            
         self.cache_dir = cache_dir or os.path.join(ROOT_DIR, "cache", "models")
         self.device = device
         self.model_kwargs = model_kwargs
@@ -78,6 +82,8 @@ class PretrainedModelLoader:
 
         # Load config
         print("Loading config...")
+        print(self.model_name)
+        print(self.cache_dir)
         self.config = AutoConfig.from_pretrained(
             self.model_name,
             cache_dir=self.cache_dir,
@@ -181,6 +187,14 @@ def load_gpt_oss_20b(device: str = "cuda", cache_dir: Optional[str] = None, torc
         torch_dtype=torch_dtype,
     )
 
+
+def load_granite_2b(device: str = "cuda", cache_dir: Optional[str] = None, torch_dtype=torch.bfloat16):
+    return load_pretrained_model(
+        model_name=GRANITE_MODEL_NAME,
+        cache_dir=cache_dir,
+        device=device,
+        torch_dtype=torch_dtype,
+    )
 
 if __name__ == "__main__":
     # Example usage

@@ -30,7 +30,7 @@ def main():
    set_seed(cfg.seed)
    logger = setup_logging(cfg.output_dir)
    # create the fine-tuner
-   finetuner = FineTuner(cfg=cfg)
+   finetuner = FineTuner(cfg=cfg, logger=logger)
    # start the training loop
    finetuner.training_loop()
 
