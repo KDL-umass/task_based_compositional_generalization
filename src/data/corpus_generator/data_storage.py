@@ -5,6 +5,7 @@ import json
 import logging
 from omegaconf import OmegaConf
 import numpy as np
+from src.utils.logging_utils import setup_data_logging
 
 class DataStorage:
     """Handles file I/O operations and directory structure."""
@@ -39,38 +40,22 @@ class DataStorage:
         os.makedirs(self.direct_fdir, exist_ok=True)    
         
     def setup_logging(self):
-        """Initialize logging configuration."""
-        log_path = "{}/logs/{}".format(self.root_dir, self.cfg.function_type)
-        os.makedirs(log_path, exist_ok=True)
-        
-        base_name = "nalph_{}_seqlen_{}_fnlen_{}_taskmaxlen_{}".format(
-            self.cfg.n_alphabets,
-            self.cfg.seq_len,
-            self.cfg.n_functions,
-            self.cfg.task_max_length,
-        )
-        
-        log_file_dir = "{}/{}/{}/{}/model_{}".format(
-            log_path,
-            base_name,
-            "direct",
-            self.cfg.prompt_length,
-            self.dir_flag,
-        )
-        
-        print("log_file_dir", log_file_dir)
+        """Initialize logging configuration using centralized logging utility."""
         print("data_dir", self.direct_fdir)
         
-        os.makedirs(log_file_dir, exist_ok=True)
-        
-        logging.basicConfig(
-            filename="{}/data.log".format(log_file_dir),
-            level=logging.INFO,
-            format="%(asctime)s - %(levelname)s - %(message)s",
-            filemode="w",
+        logger = setup_data_logging(
+            root_dir=self.root_dir,
+            function_type=self.cfg.function_type,
+            n_alphabets=self.cfg.n_alphabets,
+            seq_len=self.cfg.seq_len,
+            n_functions=self.cfg.n_functions,
+            task_max_length=self.cfg.task_max_length,
+            prompt_length=self.cfg.prompt_length,
+            dir_flag=self.dir_flag,
+            log_filename="data.log",
         )
         
-        return logging.getLogger(__name__)
+        return logger
     
     def store_data(self, corpus, token, token_idx, functions_info):
         """Store all generated data to disk."""
