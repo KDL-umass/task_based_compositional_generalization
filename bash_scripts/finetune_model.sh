@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --time=24:00:00
+#SBATCH --time=48:00:00
 #SBATCH -c 8
-#SBATCH --mem=40GB
+#SBATCH --mem=100GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 1 # Number of GPUs
 #SBATCH --constraint vram40

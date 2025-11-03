@@ -257,15 +257,19 @@ def log_train(it, lr, train_loss):
     return list()
 
 
-def log_eval(it, lr, eval_info, eval_info2=None, logger=None):
+def log_eval(it, lr, eval_info, eval_info2=None, logger=None, sharp_acc=False):
     logger.info(f"----\nIteration: {it}")
     logger.info(
         f"Acc (train/test): {eval_info['train_acc']:.3f}/{eval_info['test_acc']:.3f}"
     )
+    if sharp_acc:
+        logger.info(
+            f"Sharp Acc (train/test): {eval_info['train_sharp_acc']:.3f}/{eval_info['test_sharp_acc']:.3f}"
+        )
     logger.info(
         f"loss (train/test): {eval_info['train_loss']:.4f}/{eval_info['test_loss']:.4f}"
     )
-
+    
     if eval_info2 is not None:
         logger.info(
             f"Acc (train/test): {eval_info2['train_acc']:.3f}/{eval_info2['test_acc']:.3f}"

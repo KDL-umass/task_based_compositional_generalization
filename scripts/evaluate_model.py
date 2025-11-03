@@ -3,19 +3,15 @@ Evaluation script
 """
 
 import argparse
-import glob
 import os
 
 import numpy as np
 import torch
 
-from src.data_generation.init import read_config, set_seed
+from src.data_generation.init import read_config, set_seed, ROOT_DIR
 from src.evaluation.fixed_evaluator import FixedPromptEvaluator
-from src.evaluation.variable_evaluator import VariablePromptEvaluator
 from src.models.nanogpt import nanoGPT
-
-ROOT_DIR = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization"
-MODELS_DIR = "FILL/IN/PATH/TO/MODELS/DIRECTORY"
+from src.models.pretrained import load_llama3_8b, load_gpt_oss_20b, load_granite_2b
 
 # see if cuda is available
 if torch.cuda.is_available():
@@ -35,6 +31,18 @@ def load_net(fname):
     net.load_state_dict(ckpt["net"])
     return net, net_cfg
 
+def load_pretrained_model_from_ckpt(model_name, ckpt_path):
+    if model_name == "llama3":
+        model, tokenizer, config = load_llama3_8b()
+    elif model_name == "gpt2":
+        model, tokenizer, config = load_gpt_oss_20b()
+    elif model_name == "granite":
+        model, tokenizer, config = load_granite_2b()
+    else:
+        raise ValueError(f"Model {model_name} not supported")
+    model.load_state_dict(torch.load(ckpt_path, weights_only=False, map_location=DEVICE))
+    return model, tokenizer, config
+
 
 def fetch_dirs(cfg, i):
 
@@ -50,19 +58,7 @@ def fetch_dirs(cfg, i):
         cfg.seed,
     )
     if not os.path.exists(ckpt_dir):
-        ckpt_dir = "{}/models/ckpts/{}/{}/{}/{}/{}/{}/{}/seed_{}".format(
-            MODELS_DIR,
-            cfg.function_type,
-            cfg.prompt_length,
-            cfg.data_n_alphabets_seq_len_fn_len_max_task_length,
-            cfg.tag,
-            cfg.model_split,
-            cfg.pos_embedding_type,
-            cfg.nheads_nlayers,
-            cfg.seed,
-        )
-        if not os.path.exists(ckpt_dir):
-            raise ValueError("Checkpoint directory does not exist: {}".format(ckpt_dir))
+        raise ValueError("Checkpoint directory does not exist: {}".format(ckpt_dir))
 
     def itr(ck):
         return int((ck.split("_")[-1]).split(".")[0])

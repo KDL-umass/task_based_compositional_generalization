@@ -44,7 +44,11 @@ class FineTuner:
         loaders = []
         for split in ["train", "train_heldout", "test"]:
             dataset = MappedSyntheticDataset(self.cfg.data_path, split=split, mode=self.cfg.mode, token_map=self.token_map)
-            loader = get_data_loader(dataset, self.cfg.batch_size, self.cfg.num_workers)
+            if split == "train":
+                batch_size = self.cfg.batch_size
+            else:
+                batch_size = self.cfg.batch_size * 100
+            loader = get_data_loader(dataset, batch_size, self.cfg.num_workers)
             loaders.append(loader)
         return loaders
 
@@ -105,23 +109,23 @@ class FineTuner:
 
                 # if it is time to evaluate
                 if it % self.cfg.log.eval_interval == 0:
-                    eval_info = self.evaluate(loaders, device_info, sep_pos)
-                    log_eval(it, lr, eval_info, logger=self.logger)
+                    eval_info = self.evaluate(loaders[1:], device_info, sep_pos)
+                    log_eval(it, lr, eval_info, logger=self.logger, sharp_acc=True)
                 
 
         # log the final evaluation metrics
-        eval_info = self.evaluate(loaders, device_info, sep_pos)
-        log_eval(it, lr, eval_info, logger=self.logger)
+        eval_info = self.evaluate(loaders[1:], device_info, sep_pos)
+        log_eval(it, lr, eval_info, logger=self.logger, sharp_acc=True)
         save_model(self.cfg, self.model, self.optimizer, it, self.cfg.output_dir)
 
     @torch.no_grad()
     def evaluate(self, evalLoaders, device_info, sep_pos):
-        all_loss, all_acc = [], []
+        all_loss, all_acc, all_sharp_acc = [], [], []
         device, dt = device_info
         self.model.eval()
-        for idx, split in enumerate(("train", "train_heldout", "test")):
+        for idx, split in enumerate(("train_heldout", "test")):
             loader = evalLoaders[idx]
-            sequences, total_loss, total_acc = 0.0, 0.0, 0.0
+            sequences, total_loss, total_acc, sharp_acc = 0.0, 0.0, 0.0, 0.0
             for dat, targets in loader:
                 dat, targets = move_to_device(dat, targets, device)
                 bs = dat.size(0)
@@ -139,25 +143,25 @@ class FineTuner:
                     total_loss += loss.item() * bs
                     # compute the accuracy
                     acc = logits.argmax(-1) == targets
-                    # calculate sharp accuracy
-                    sharp_acc = acc.all(dim=-1).float().mean().item()
+                    total_acc += acc.float().mean().item() * bs
+                    sharp_acc += acc.all(dim=-1).float().mean().item() * bs
                     
-                    # calculate total ood accuracy
-                    total_acc += sharp_acc * bs
                 sequences += bs
             if sequences == 0:
                     all_loss.append(float("inf"))
                     all_acc.append(float("inf"))
+                    all_sharp_acc.append(float("inf"))
             else:
                 all_loss.append(total_loss / sequences)
                 all_acc.append(total_acc / sequences)
+                all_sharp_acc.append(sharp_acc / sequences)
         info = {
             "train_loss": all_loss[0],
             "train_acc": all_acc[0],
-            "heldout_loss": all_loss[1],
-            "heldout_acc": all_acc[1],
-            "test_loss": all_loss[2],
-            "test_acc": all_acc[2],
+            "test_loss": all_loss[1],
+            "test_acc": all_acc[1],
+            "train_sharp_acc": all_sharp_acc[0],
+            "test_sharp_acc": all_sharp_acc[1],
         }
         self.model.train()
         return info

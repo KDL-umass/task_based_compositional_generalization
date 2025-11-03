@@ -9,12 +9,12 @@ model_name: "granite"
 function_type: "uniform"
 device : "cuda"
 bf16: True
-epochs: 3
-data_path: "/work/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization/data/uniform/fixed/nalph_26_seqlen_6_fnlen_6_taskmaxlen_2/direct/combination_2"
-output_dir: "/work/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization/checkpoints/granite"
+epochs: 10
+data_path: "/work/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization/data/uniform/fixed/nalph_26_seqlen_6_fnlen_6_taskmaxlen_6/direct/combination_6"
+output_dir: "/work/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization/models/ckpts/uniform/fixed/nalph_26_seqlen_6_fnlen_6_taskmaxlen_6/direct/combination_6/granite"
 mode: "direct"
-train_split: "combination_2"
-task_max_length: 2
+train_split: "combination_6"
+task_max_length: 6
 num_workers: 4
 batch_size: 1
 
@@ -31,9 +31,9 @@ optimizer:
   grad_clip: 1.0
 
   decay_lr: True
-  warmup_iters: 2000
+  warmup_iters: 500
   min_lr: 0.000006
 
 log: 
-  eval_interval: 1
+  eval_interval: 500
   log_interval: 1

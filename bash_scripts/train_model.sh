@@ -8,20 +8,20 @@
 #SBATCH --output=./a_logs/train_model.out
 #SBATCH --error=./a_logs/train_model.err
 module load conda/latest
-cd /project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization
+cd /work/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization
 conda activate CG
 
 PROMPT_LENGTHS=("fixed")
-PROMPT_MODES=("direct")
-POS_EMBEDDING_TYPES=("abs")
-FUNCTION_TYPES=("uniform")
+PROMPT_MODES=("direct" "step_by_step")
+POS_EMBEDDING_TYPES=("abs" "rel_global")
+FUNCTION_TYPES=("uniform" "diverse")
 
 
 EPOCHS=100
 N_ALPHABETS=26
 SEQ_LEN=6
 N_FUNCTIONS=6
-NHEADS_NLAYERS="nh6_nl3"
+NHEADS_NLAYERS="nh12_nl12"
 SEEDS=(0)
 
 TRAIN_SPLIT_STRATEGIES=("combination_6")
