@@ -8,13 +8,13 @@
 #SBATCH --output=./a_logs/train_model.out
 #SBATCH --error=./a_logs/train_model.err
 module load conda/latest
-cd /work/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization
+cd /scratch4/workspace/ppruthi_umass_edu-CG/task_based_compositional_generalization
 conda activate CG
 
 PROMPT_LENGTHS=("fixed")
-PROMPT_MODES=("direct" "step_by_step")
-POS_EMBEDDING_TYPES=("abs" "rel_global")
-FUNCTION_TYPES=("uniform" "diverse")
+PROMPT_MODES=("direct")
+POS_EMBEDDING_TYPES=("rel_global")
+FUNCTION_TYPES=("uniform")
 
 
 EPOCHS=100

@@ -17,7 +17,7 @@ class SyntheticDataGenerator:
     document generation, and data storage.
     """
 
-    def __init__(self, cfg):
+    def __init__(self, cfg, logger):
         """
         Initialize the synthetic data generator.
         
@@ -34,7 +34,7 @@ class SyntheticDataGenerator:
         self.train_functions, self.test_functions, self.functions_info = self.compositions_generator.get_train_test_compositions()
         # Initialize specialized modules
         self.storage = DataStorage(cfg, ROOT_DIR)
-        self.logger = self.storage.setup_logging()
+        self.logger = logger
         
         self.token_manager = TokenManager(
             cfg.n_alphabets,

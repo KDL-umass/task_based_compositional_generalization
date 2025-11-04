@@ -66,7 +66,7 @@ def setup_logger(
     
     return logger
 
-def get_directory_path(cfg: dict, eval_flag: bool = False) -> str:
+def get_directory_path(cfg: dict, key: str) -> str:
     log_path = os.path.join(ROOT_DIR, "logs")
     function_type = cfg.function_type
     base_name = "nalph_{}_seqlen_{}_fnlen_{}_taskmaxlen_{}".format(
@@ -75,35 +75,48 @@ def get_directory_path(cfg: dict, eval_flag: bool = False) -> str:
         cfg.n_functions,
         cfg.task_max_length,
     )
-    tag = cfg.mode
+    prompt_mode = cfg.prompt_mode
     prompt_length = cfg.prompt_length
     # if train_split is present in cfg, use it, otherwise use split_strategy
-    train_split = cfg.train_split if cfg.train_split else cfg.split_strategy
-    pos_embedding_type = cfg.net.pos_embedding_type
-    if eval_flag:
-        model_split = cfg.model_split
+    if hasattr(cfg, 'train_split'):
+        train_split = cfg.train_split
+    else:
+        train_split = cfg.split_strategy
+
+    if key == 'eval':
+        pos_embedding_type = cfg.net.pos_embedding_type
         eval_split = cfg.eval_split
-    if eval_flag:
         log_file_dir = os.path.join(
             log_path,
             function_type,
             base_name,
-            tag,
+            prompt_mode,
             prompt_length,
-            f"model_{model_split}",
+            f"model_{train_split}",
             f"eval_{eval_split}",
             pos_embedding_type,
             f"seed_{cfg.seed}",
         )
-    else:
+    elif key == 'train':
+        pos_embedding_type = cfg.net.pos_embedding_type
         log_file_dir = os.path.join(
             log_path,
             function_type,
             base_name,
-            tag,
+            prompt_mode,
             prompt_length,
             f"model_{train_split}",
             pos_embedding_type,
+            f"seed_{cfg.seed}",
+        )
+    elif key == 'data':
+        log_file_dir = os.path.join(
+            log_path,
+            function_type,
+            base_name,
+            prompt_mode,
+            prompt_length,
+            f"model_{train_split}",
         )
     return log_file_dir
 
@@ -125,7 +138,7 @@ def setup_data_logging(
     Returns:
         Configured logger instance
     """
-    log_path = get_directory_path(cfg)
+    log_path = get_directory_path(cfg, key='data')
     return setup_logger(log_path, log_filename=log_filename)
 
 
@@ -146,7 +159,7 @@ def setup_training_logging(
     Returns:
         Configured logger instance
     """
-    log_path = get_directory_path(cfg)
+    log_path = get_directory_path(cfg, key='train')
     return setup_logger(log_path, log_filename=log_filename)
 
 
@@ -167,7 +180,7 @@ def setup_evaluation_logging(
     Returns:
         Configured logger instance
     """
-    log_path = get_directory_path(cfg, eval_flag=True)
+    log_path = get_directory_path(cfg, key='eval')
     
     logger = setup_logger(log_path, log_filename=log_filename)
     logger.info("Initializing SyntheticEval...")

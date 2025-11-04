@@ -39,24 +39,6 @@ class DataStorage:
         os.makedirs(self.step_fdir, exist_ok=True)
         os.makedirs(self.direct_fdir, exist_ok=True)    
         
-    def setup_logging(self):
-        """Initialize logging configuration using centralized logging utility."""
-        print("data_dir", self.direct_fdir)
-        
-        logger = setup_data_logging(
-            root_dir=self.root_dir,
-            function_type=self.cfg.function_type,
-            n_alphabets=self.cfg.n_alphabets,
-            seq_len=self.cfg.seq_len,
-            n_functions=self.cfg.n_functions,
-            task_max_length=self.cfg.task_max_length,
-            prompt_length=self.cfg.prompt_length,
-            dir_flag=self.dir_flag,
-            log_filename="data.log",
-        )
-        
-        return logger
-    
     def store_data(self, corpus, token, token_idx, functions_info):
         """Store all generated data to disk."""
         modes = ["step_by_step", "direct"]

@@ -39,3 +39,4 @@ def set_seed(seed=0):
 
 
 ROOT_DIR = find_project_root()
+MODELS_ROOT_DIR = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/task_based_compositional_generalization"

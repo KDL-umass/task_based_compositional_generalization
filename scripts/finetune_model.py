@@ -1,7 +1,3 @@
-
-import logging
-import os
-
 from init import read_config, set_seed, ROOT_DIR
 from src.training.finetuning import FineTuner
 from src.utils.logging_utils import setup_training_logging

@@ -10,15 +10,17 @@
 #     done
 # done
 
-# Generate data for within-k evaluation without identity functions (as task max length=k)
-for function_type in "uniform" "diverse"; do
-    echo "Generating data for function_type: $function_type"
-    for k in {2..6}; do
-        echo "Generating data for combination_$k"
+# # Generate data for within-k evaluation without identity functions (as task max length=k)
+# for function_type in "uniform" "diverse"; do
+#     echo "Generating data for function_type: $function_type"
+#     for k in {2..6}; do
+#         echo "Generating data for combination_$k"
         
-        python3 -m scripts.generate_data --split_strategy combination_$k --task_max_length $k --function_type $function_type
-    done
-done
+#         python3 -m scripts.generate_data --split_strategy combination_$k --task_max_length $k --function_type $function_type
+#     done
+# done
+
+python3 -m scripts.generate_data --split_strategy combination_6 --task_max_length 6 --function_type uniform
 
 # # Generate data for random sampling of compositions for K=6 for various train-test split ratios
 # train_perm_size=(1 10 20 30 40 50 60 70 80 90 100 200 300 400 500 600 700)

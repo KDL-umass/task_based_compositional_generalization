@@ -4,7 +4,8 @@ from src.models.pretrained import load_llama3_8b, load_gpt_oss_20b, load_granite
 from src.training.trainer import configure_optimizers, move_to_device, update_cosine_warmup_lr, log_train, log_eval, save_model
 import torch
 import torch.nn.functional as F
-
+from init import ROOT_DIR
+import os
 
 class FineTuner:
     def __init__(self, cfg, logger):
@@ -43,7 +44,7 @@ class FineTuner:
     def load_dataloaders(self):
         loaders = []
         for split in ["train", "train_heldout", "test"]:
-            dataset = MappedSyntheticDataset(self.cfg.data_path, split=split, mode=self.cfg.mode, token_map=self.token_map)
+            dataset = MappedSyntheticDataset(self.cfg.data_path, split=split, mode=self.cfg.prompt_mode, token_map=self.token_map)
             if split == "train":
                 batch_size = self.cfg.batch_size
             else:
@@ -52,6 +53,21 @@ class FineTuner:
             loaders.append(loader)
         return loaders
 
+    def get_output_dir(self):
+        n_alphabets_seq_len_fn_len_task_max_length = (
+            self.cfg.data.n_alphabets_seq_len_fn_len_task_max_length
+        )
+        output_dir = "{}/models/ckpts/{}/{}/{}/{}/{}/".format(
+            ROOT_DIR,
+            self.cfg.function_type,
+            self.cfg.prompt_length,
+            n_alphabets_seq_len_fn_len_task_max_length,
+            self.cfg.prompt_mode,
+            self.cfg.train_split
+        )
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+        return output_dir
         
     def training_loop(self):
         # first load the model and tokenizer
@@ -116,7 +132,7 @@ class FineTuner:
         # log the final evaluation metrics
         eval_info = self.evaluate(loaders[1:], device_info, sep_pos)
         log_eval(it, lr, eval_info, logger=self.logger, sharp_acc=True)
-        save_model(self.cfg, self.model, self.optimizer, it, self.cfg.output_dir)
+        save_model(self.cfg, self.model, self.optimizer, it, self.get_output_dir())
 
     @torch.no_grad()
     def evaluate(self, evalLoaders, device_info, sep_pos):
@@ -156,12 +172,19 @@ class FineTuner:
                 all_acc.append(total_acc / sequences)
                 all_sharp_acc.append(sharp_acc / sequences)
         info = {
-            "train_loss": all_loss[0],
-            "train_acc": all_acc[0],
-            "test_loss": all_loss[1],
-            "test_acc": all_acc[1],
-            "train_sharp_acc": all_sharp_acc[0],
-            "test_sharp_acc": all_sharp_acc[1],
+            "loss": {
+                "train_heldout": all_loss[0],
+                "test": all_loss[1],
+            },
+            "acc": {
+                "train_heldout": all_acc[0],
+                "test": all_acc[1],
+            },
+            "sharp_acc": {
+                "train_heldout": all_sharp_acc[0],
+                "test": all_sharp_acc[1],
+            },
         }
+        
         self.model.train()
         return info

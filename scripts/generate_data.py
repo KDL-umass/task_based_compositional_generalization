@@ -1,11 +1,11 @@
 import argparse
 from init import read_config, set_seed, ROOT_DIR
 from src.data.generator import SyntheticDataGenerator
-
-def main(cfg):
+from src.utils.logging_utils import setup_data_logging
+def main(cfg, logger):
     set_seed(cfg.seed)
     # Create synthetic data generator
-    synthetic_data_generator = SyntheticDataGenerator(cfg)
+    synthetic_data_generator = SyntheticDataGenerator(cfg, logger)
     # Generate corpus
     synthetic_data_generator.generate_corpus()
     # Store data
@@ -44,4 +44,5 @@ if __name__ == "__main__":
     cfg.split_strategy = args.split_strategy
     cfg.task_max_length = args.task_max_length
     cfg.function_type = args.function_type
-    main(cfg)
+    logger = setup_data_logging(cfg)
+    main(cfg, logger)
