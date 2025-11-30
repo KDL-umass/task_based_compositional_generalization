@@ -3,25 +3,29 @@ import pickle
 import logging
 import torch
 
-from src.data_generation.utils import get_function_list
-def map_docs_to_combination_id(token, token_idx, sep_token, functions_info, docs, get_function_list):
+def map_docs_to_combination_id(docs, token_manager, token_map=None):
     """Map documents to their combination IDs"""
-    sep_idx = token_idx[sep_token]
-    docs_functions = np.array([get_function_list(doc, sep_idx) for doc in docs])
+    docs_functions = np.array([token_manager.get_function_list(doc, token_map) for doc in docs])
 
     combination_ids_map = {}
     combination_ids = []
 
     # vectorized version of the loop
-    docs_function_token = [
-        tuple([token[fn] for fn in docs_functions[i]])
-        for i in range(len(docs_functions))
-    ]
+    if token_map is not None:
+        docs_function_token = [
+            tuple([token_manager.token[token_map[fn]] for fn in docs_functions[i]])
+            for i in range(len(docs_functions))
+        ]
+    else:
+        docs_function_token = [
+            tuple([token_manager.token[fn] for fn in docs_functions[i]])
+            for i in range(len(docs_functions))
+        ]
     # convert to list of tuples
 
     combination_ids = np.array(
         [
-            functions_info[docs_function_token[i]]
+            token_manager.functions_info[docs_function_token[i]]
             for i in range(len(docs_function_token))
         ]
     )
@@ -32,39 +36,29 @@ def map_docs_to_combination_id(token, token_idx, sep_token, functions_info, docs
 
 
 def calculate_combination_accuracy(
-    acc_array, ood_flags, combination_ids, use_sharp=True
+    acc_array, ood_flags, combination_ids
 ):
     """Calculate accuracy grouped by combination ID"""
-    if combination_ids is None:
-        return {}
-
     print_error_indices = []
 
     combination_acc = {}
+    combination_mean_acc = {}
     combination_ood = {}
     combination_indices = {}
 
     for idx, combination_id in enumerate(combination_ids):
         if combination_id not in combination_acc:
             combination_acc[combination_id] = []
+            combination_mean_acc[combination_id] = []
             combination_ood[combination_id] = []
             combination_indices[combination_id] = []
-        if use_sharp:
-            acc_val = (
-                acc_array[idx].all().float().item()
-                if hasattr(acc_array[idx], "all")
-                else acc_array[idx].all()
-            )
-            ood_val = ood_flags[idx]
-        else:
-            acc_val = (
-                acc_array[idx].float().mean().item()
-                if hasattr(acc_array[idx], "float")
-                else acc_array[idx].mean()
-            )
-            ood_val = ood_flags[idx]
+        
+        sharp_acc_val = acc_array[idx].all(dim=-1).float().mean().item()
+        mean_acc_val = acc_array[idx].float().mean(dim=-1).item()
+        ood_val = ood_flags[idx]
 
-        combination_acc[combination_id].append(acc_val)
+        combination_acc[combination_id].append(sharp_acc_val)
+        combination_mean_acc[combination_id].append(mean_acc_val)
         combination_ood[combination_id].append(ood_val)
         combination_indices[combination_id].append(idx)
     # find total number of unique combination ids
@@ -84,6 +78,7 @@ def calculate_combination_accuracy(
     print_error_indices = list(set(print_error_indices))
     return (
         {cid: np.mean(accs) for cid, accs in combination_acc.items()},
+        {cid: np.mean(means) for cid, means in combination_mean_acc.items()},
         {cid: np.mean(oods) for cid, oods in combination_ood.items()},
         total_unique_combination_ids,
         print_error_indices,

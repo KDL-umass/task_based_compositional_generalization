@@ -8,10 +8,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from src.data.corpus_generator.token_manager import DictionaryLoader
-
-
-
 # Optimizer
 def configure_optimizers(net, optim_cfg):
     # filter out those that do not require grad
@@ -80,13 +76,16 @@ def move_to_device(dat, targets, device):
     return dat, targets
 
 # Logging functions
-def save_model(cfg, net, optimizer, it, fdir):
+def save_model(cfg, net, optimizer, it, fdir, token_map=None):
     checkpoint = {
         "net": net.state_dict(),
         "optimizer": optimizer.state_dict(),
         "iter": it,
         "config": cfg,
     }
+    # add token map if it is not None
+    if token_map is not None:
+        checkpoint["token_map"] = token_map
     fname = os.path.join(fdir, "ckpt_" + str(it + 1) + ".pt")
     torch.save(checkpoint, fname)
 

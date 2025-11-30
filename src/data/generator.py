@@ -35,6 +35,8 @@ class SyntheticDataGenerator:
         # Initialize specialized modules
         self.storage = DataStorage(cfg, ROOT_DIR)
         self.logger = logger
+        self.logger.info(f"Train functions: {len(self.train_functions)}")
+        self.logger.info(f"Test functions: {len(self.test_functions)}")
         
         self.token_manager = TokenManager(
             cfg.n_alphabets,

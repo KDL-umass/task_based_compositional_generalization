@@ -73,25 +73,25 @@ class DocumentGenerator:
         """Build a direct document (input -> output)."""
         if self.cfg.function_type in ["diverse", "diverse2"]:
             return np.concatenate([
-                self.token_manager.start_idx,
+                np.array([self.token_manager.start_idx]),
                 task_indices,
-                self.token_manager.sep_idx,
+                np.array([self.token_manager.sep_idx]),
                 xstr1_tokens,
-                self.token_manager.sep_idx,
+                np.array([self.token_manager.sep_idx]),
                 xstr2_tokens,
-                self.token_manager.sep_idx,
+                np.array([self.token_manager.sep_idx]),
                 output_tokens[-1],
-                self.token_manager.end_idx,
+                np.array([self.token_manager.end_idx]),
             ])
         else:
             return np.concatenate([
-                self.token_manager.start_idx,
+                np.array([self.token_manager.start_idx]),
                 task_indices,
-                self.token_manager.sep_idx,
+                np.array([self.token_manager.sep_idx]),
                 xstr1_tokens,
-                self.token_manager.sep_idx,
+                np.array([self.token_manager.sep_idx]),
                 output_tokens[-1],
-                self.token_manager.end_idx,
+                np.array([self.token_manager.end_idx]),
             ])
 
     def _build_step_by_step_document(self, task_indices, xstr1_tokens,
@@ -100,31 +100,31 @@ class DocumentGenerator:
         
         if self.cfg.function_type in ["diverse", "diverse2"]:
             step_by_step_document = np.concatenate([
-                self.token_manager.start_idx,
+                np.array([self.token_manager.start_idx]),
                 task_indices,
-                self.token_manager.sep_idx,
+                np.array([self.token_manager.sep_idx]),
                 xstr1_tokens,
-                self.token_manager.sep_idx,
+                np.array([self.token_manager.sep_idx]),
                 xstr2_tokens,
             ])
         else:
             step_by_step_document = np.concatenate([
-                self.token_manager.start_idx,
+                np.array([self.token_manager.start_idx]),
                 task_indices,
-                self.token_manager.sep_idx,
+                np.array([self.token_manager.sep_idx]),
                 xstr1_tokens,
             ])
         
         for i in range(len(output_tokens)):
             step_by_step_document = np.concatenate([
                 step_by_step_document,
-                self.token_manager.sep_idx,
+                np.array([self.token_manager.sep_idx]),
                 output_tokens[i]
             ])
         
         step_by_step_document = np.concatenate([
             step_by_step_document,
-            self.token_manager.end_idx
+            np.array([self.token_manager.end_idx]),
         ])
         
         return step_by_step_document
@@ -196,7 +196,7 @@ class DocumentGenerator:
             
         return [
             (np.pad(doc, (0, max_len - len(doc)), 
-                   constant_values=self.token_manager.space_idx[0])
+                   constant_values=self.token_manager.space_idx)
              if len(doc) < max_len else doc)
             for doc in documents
         ]

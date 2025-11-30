@@ -2,11 +2,11 @@ import torch
 import torch.nn.functional as F
 import os
 import shutil
-from src.data.corpus_generator.token_manager import DictionaryLoader
+from src.data.corpus_generator.token_manager import TokenManager
 from src.data.loaders import get_data_loader, SyntheticDataset
 
 from src.training.utils import configure_optimizers, move_to_device, update_cosine_warmup_lr, log_train, log_eval, save_model
-
+from src.utils.storage_utils import get_directory_path
 from src.models.nanogpt import nanoGPT
 from src.data.loaders import SyntheticDataset
 
@@ -32,7 +32,7 @@ class Trainer:
         return net, optimizer
 
     def sanity_checks(self, loader):
-        self.dictionary = DictionaryLoader(self.cfg.data_path)
+        self.dictionary = TokenManager(load_path=self.cfg.data_path)
         vocab_len = self.dictionary.get_vocab_len()
         seq_len = loader.dataset.data.shape[1]
         print(f"vocab_len: {vocab_len}")
@@ -81,23 +81,7 @@ class Trainer:
         self.train(train_loader, loaders, sep_pos)
 
     def get_output_dir(self):
-        nheads_nlayers = f"nh{self.cfg.net.n_head}_nl{self.cfg.net.n_layer}"
-        n_alphabets_seq_len_fn_len_task_max_length = (
-            self.cfg.data.n_alphabets_seq_len_fn_len_task_max_length
-        )
-
-        output_dir = "{}/models/ckpts/{}/{}/{}/{}/{}/{}/{}/seed_{}".format(
-            ROOT_DIR,
-            self.cfg.function_type,
-            self.cfg.prompt_length,
-            n_alphabets_seq_len_fn_len_task_max_length,
-            self.cfg.prompt_mode,
-            self.cfg.train_split,
-            self.cfg.net.pos_embedding_type,
-            nheads_nlayers,
-            self.cfg.seed,
-        )
-
+        output_dir = get_directory_path(self.cfg, key='train', prefix_dir='models/ckpts')
         if os.path.exists(output_dir):
             shutil.rmtree(output_dir)
         os.makedirs(output_dir, exist_ok=True)
@@ -121,7 +105,7 @@ class Trainer:
         self.logger.info(f"Learning rate warmup steps: {self.cfg.optimizer.warmup_iters}")
 
         for _ in range(self.cfg.epochs):
-            for dat, targets in train_loader:
+            for dat, targets, elems in train_loader:
                 if it % self.cfg.log.eval_interval == 0:
                     eval_info = self.evaluate(loaders, device_info, sep_pos)
                     log_eval(it, lr, eval_info, logger=self.logger)
@@ -168,8 +152,9 @@ class Trainer:
         for idx, split in enumerate(("train", "train_heldout", "test")):
             loader = evalLoaders[idx]
             sequences, total_loss, total_acc, sharp_acc = 0.0, 0.0, 0.0, 0.0
-            for dat, targets in loader:
+            for dat, targets, elems in loader:
                 dat, targets = move_to_device(dat, targets, device)
+                inputs = dat[:, :sep_pos]
                 bs = dat.size(0)
                 with torch.amp.autocast(device_type=device, dtype=dt):
                     # get the logits B*T*V

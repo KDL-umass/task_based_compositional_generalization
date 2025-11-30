@@ -1,4 +1,16 @@
 #!/bin/bash
+#SBATCH  -t 16:00:00
+#SBATCH -p gpu
+#SBATCH --gres=gpu:1
+#SBATCH --mem 100GB
+#SBATCH --cpus-per-task 4
+#SBATCH --job-name=data_test
+#SBATCH --output=./a_logs/data_test.out
+#SBATCH --error=./a_logs/data_test.err
+module load conda/latest
+cd /scratch4/workspace/ppruthi_umass_edu-CG/task_based_compositional_generalization
+conda activate CG
+
 # Generate data for within-k and cross-k evaluation with identity functions as task max length=7
 # for prompt_length in "fixed"; do
 #     echo "Generating data for prompt_length: $prompt_length"
@@ -20,7 +32,24 @@
 #     done
 # done
 
-python3 -m scripts.generate_data --split_strategy combination_6 --task_max_length 6 --function_type uniform
+
+# python3 -m scripts.generate_data --split_strategy combination_6 --task_max_length 6 --function_type diverse
+# python3 -m scripts.generate_data --split_strategy disjoint_2_50 --task_max_length 2 --function_type diverse
+# python3 -m scripts.generate_data --split_strategy disjoint_2_100 --task_max_length 2 --function_type diverse
+
+# for percentage in 0 20 40 60 80 100; do
+#     python3 -m scripts.generate_data --split_strategy disjoint1_4_$percentage --task_max_length 4 --function_type diverse
+#     python3 -m scripts.generate_data --split_strategy disjoint3_4_$percentage --task_max_length 4 --function_type diverse
+#     python3 -m scripts.generate_data --split_strategy disjoint4_4_$percentage --task_max_length 4 --function_type diverse
+#     python3 -m scripts.generate_data --split_strategy disjoint5_4_$percentage --task_max_length 4 --function_type diverse
+#     python3 -m scripts.generate_data --split_strategy disjoint6_4_$percentage --task_max_length 4 --function_type diverse
+#     python3 -m scripts.generate_data --split_strategy disjoint7_4_$percentage --task_max_length 4 --function_type diverse
+#     python3 -m scripts.generate_data --split_strategy disjoint8_4_$percentage --task_max_length 4 --function_type diverse
+#     python3 -m scripts.generate_data --split_strategy disjoint9_4_$percentage --task_max_length 4 --function_type diverse
+# done
+
+python3 -m scripts.generate_data --split_strategy disjoint5_6_0 --task_max_length 6 --function_type diverse
+
 
 # # Generate data for random sampling of compositions for K=6 for various train-test split ratios
 # train_perm_size=(1 10 20 30 40 50 60 70 80 90 100 200 300 400 500 600 700)

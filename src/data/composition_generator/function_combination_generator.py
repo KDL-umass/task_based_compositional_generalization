@@ -43,6 +43,8 @@ class FunctionCombinationGenerator:
             return self._generate_systematic()
         elif strategy.startswith("custom"):
             return self._generate_systematic()
+        elif strategy.startswith("disjoint"):
+            return self._generate_systematic()
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
 

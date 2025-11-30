@@ -1,6 +1,6 @@
 import json
 from init import ROOT_DIR
-
+from src.data.modules.randomFunctions import MapRandom
 class DiverseFunctionsV1:
     @staticmethod
     def identity(xstr):
@@ -70,10 +70,9 @@ class DiverseFunctionsV2:
 
     @staticmethod
     def map(xstr):
-        mapping_json_file = f"{ROOT_DIR}/data/jsons/mappings.json"
-        with open(mapping_json_file, "r") as f:
-            mapping = json.load(f)
-        return "".join(mapping["map1"][c] for c in xstr)
+        # use random mapping from RandomMapping class
+        return MapRandom.map_random(seed=1)(xstr)
+
 
     @staticmethod
     def sort(xstr):

@@ -58,12 +58,14 @@ if __name__ == "__main__":
         cfg.train_split,
     )
     cfg.net.pos_embedding_type = args.pos_embedding_type
+    cfg.pos_embedding_type = args.pos_embedding_type
     split_nhk_nlj = args.n_heads_nlayers.split("_")
     # extract k and j from split_nhk_nlj, number of heads and layers given as nhk_nlj
     n_heads = int(split_nhk_nlj[0].split("h")[1])
     n_layers = int(split_nhk_nlj[1].split("l")[1])
     cfg.net.n_head = n_heads
     cfg.net.n_layer = n_layers
+    cfg.nheads_nlayers = args.n_heads_nlayers
     cfg.function_type = args.function_type
     cfg.seed = args.seed
     # Initialize logger

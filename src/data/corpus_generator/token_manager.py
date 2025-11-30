@@ -4,13 +4,21 @@ import logging
 from src.data.corpus_generator.constants import SPECIAL_TOKENS
 import os
 
+
 class TokenManager:
     """Handles token initialization, encoding, and decoding."""
     
-    def __init__(self, n_alphabets, function_dict):
-        self.n_alphabets = n_alphabets
+    def __init__(self, n_alphabets=None, function_dict=None, load_path=None):
+        """
+        Initialize TokenManager.
+        
+        Args:
+            n_alphabets: Number of alphabet tokens (a-z). Required if load_path is None.
+            function_dict: Dictionary of functions. Required if load_path is None.
+            load_path: Path to directory containing token.pkl, token_idx.pkl, and functions_info.pkl.
+                      If provided, tokens will be loaded from files instead of initialized.
+        """
         self.special_tokens = SPECIAL_TOKENS
-        self.function_dict = function_dict
         self.token = {}
         self.token_idx = {}
         self.logger = logging.getLogger(__name__)
@@ -21,6 +29,43 @@ class TokenManager:
         self.sep_token = self.special_tokens["SEP"]
         self.null_token = self.special_tokens["NULL"]
         self.end_token = self.special_tokens["END"]
+        
+        if load_path is not None:
+            self._load_from_path(load_path)
+        else:
+            if n_alphabets is None or function_dict is None:
+                raise ValueError("n_alphabets and function_dict are required when load_path is not provided")
+            self.n_alphabets = n_alphabets
+            self.function_dict = function_dict
+            self.init_tokens()
+    
+    def _load_from_path(self, load_path):
+        """Load token dictionaries from pickle files."""
+        token_fname = os.path.join(load_path, "token.pkl")
+        token_idx_fname = os.path.join(load_path, "token_idx.pkl")
+        functions_info_fname = os.path.join(load_path, "functions_info.pkl")
+        
+        self.token = np.load(token_fname, allow_pickle=True)
+        self.token_idx = np.load(token_idx_fname, allow_pickle=True)
+        self.functions_info = np.load(functions_info_fname, allow_pickle=True)
+            
+        # Create index arrays for quick access
+        self._create_indices()
+        
+        self.logger.info("Tokens loaded from: {}".format(load_path))
+        self.logger.info("Tokens: {}".format(self.token))
+        self.logger.info("Token indices: {}".format(self.token_idx))
+
+    def map_tokens(self, token_map, tokenizer):
+        """Map tokens to new tokens."""
+        for prev_token_idx, new_token_idx in token_map.items():
+            # update token_idx
+            new_token = tokenizer.convert_ids_to_tokens(new_token_idx)
+            self.token_idx[new_token] = new_token_idx
+            # update token
+            self.token[new_token_idx] = new_token
+            # remove prev_token_idx from token_idx
+            del self.token[prev_token_idx]
         
     def init_tokens(self):
         """Initialize alphabet, special, and function tokens."""
@@ -38,7 +83,7 @@ class TokenManager:
         print(self.token_idx)
         
         # Create index arrays for quick access
-        self._create_index_arrays()
+        self._create_indices()
         
         self.logger.info("Tokens: {}".format(self.token))
         self.logger.info("Token indices: {}".format(self.token_idx))
@@ -60,15 +105,15 @@ class TokenManager:
             self.token_idx[token] = self.n_alphabets + offset + count
             count += 1
     
-    def _create_index_arrays(self):
+    def _create_indices(self):
         """Create numpy arrays for frequently used token indices."""
         
-        self.start_idx = np.array([self.token_idx[self.start_token]])
-        self.sep_idx = np.array([self.token_idx[self.sep_token]])
-        self.end_idx = np.array([self.token_idx[self.end_token]])
+        self.start_idx = self.token_idx[self.start_token]
+        self.sep_idx = self.token_idx[self.sep_token]
+        self.end_idx = self.token_idx[self.end_token]
         
-        self.space_idx = np.array([self.token_idx[self.space_token]])
-        self.null_idx = np.array([self.token_idx[self.null_token]])
+        self.space_idx = self.token_idx[self.space_token]
+        self.null_idx = self.token_idx[self.null_token]
     
     def decode(self, token_indices, return_list=False):
         """Decode token indices to human-readable string."""
@@ -104,29 +149,67 @@ class TokenManager:
                 output_idx = [self.token_idx[output[i]] for i in range(len(output))]
             output_indices.append(output_idx)
         return output_indices
-
     
-# load token dictionary from file
-class DictionaryLoader:
-    def __init__(self, fpath):
-        self.fpath = fpath
-        self.token_fname = os.path.join(fpath, "token.pkl")
-        self.token_idx_fname = os.path.join(fpath, "token_idx.pkl")
-        self.token_dict = {}
-        self.token_idx_dict = {}
-        self.load_token_dict()
-
-    def load_token_dict(self):
-        token_dict = np.load(self.token_fname, allow_pickle=True)
-        token_idx_dict = np.load(self.token_idx_fname, allow_pickle=True)
-        self.token_dict = token_dict
-        self.token_idx_dict = token_idx_dict
-
     def get_vocab_len(self):
-        return len(self.token_idx_dict)
-
+        """Get vocabulary length."""
+        return len(self.token_idx)
+    
     def get_sep_pos(self, sample):
         """Get the position of the last separator token in the sample."""
-        sep_idx = self.token_idx_dict[SPECIAL_TOKENS["SEP"]]
-        sep_pos = np.where(sample == sep_idx)[0][-1]
+        sep_pos = np.where(sample == self.sep_idx)[0][-1]
         return sep_pos
+
+    def get_seq_info(self, sample):
+        # Find last separator position
+        sep_positions = np.where(sample == self.sep_idx)[0]
+        last_sep_pos = sep_positions[-1] if len(sep_positions) > 0 else 0
+        
+        # Find end position
+        end_positions = np.where(sample == self.end_idx)[0]
+        end_pos = end_positions[0] if len(end_positions) > 0 else len(sample)
+        
+        # For direct/curriculum mode, prompt ends at last separator
+        # For step_by_step, prompt ends after first function call
+        prompt_pos_end = last_sep_pos + 1
+        
+        # Calculate how many tokens to generate
+        new_len = end_pos - prompt_pos_end
+        
+        return {
+            "prompt_pos_end": prompt_pos_end,
+            "last_sep_pos": last_sep_pos,
+            "end_pos": end_pos,
+            "new_len": new_len,
+        }
+
+    def get_input_string(self, doc, function_type):
+        if function_type == "diverse":
+            third_sep_pos = np.where(doc == self.sep_idx)[0][2]
+        else:
+            third_sep_pos = np.where(doc == self.sep_idx)[0][1]
+        first_sep_pos = np.where(doc == self.sep_idx)[0][0]
+        input_string = doc[first_sep_pos + 1 : third_sep_pos]
+        return input_string
+
+
+    def get_output_string(self, doc, function_type, token_map=None):
+        if function_type == "diverse":
+            third_sep_pos = np.where(doc == self.sep_idx)[0][2]
+        else:
+            third_sep_pos = np.where(doc == self.sep_idx)[0][1]
+        end_token_pos = np.where(doc == self.end_token)[0][0]
+        output_string = doc[third_sep_pos + 1 : end_token_pos]
+        return output_string
+
+    def get_function_list(self, doc, token_map=None):
+        """Get the function list from the document."""
+        # get first separator position
+        # print("Token Dictionary: ", self.token)
+        # print("Token Index Dictionary: ", self.token_idx)
+        # print("Token Map: ", token_map)
+        # print(doc, self.sep_idx)
+        first_sep_pos = np.where(doc == self.sep_idx)[0][0]
+        function_list = doc[1:first_sep_pos]
+        return function_list
+
+

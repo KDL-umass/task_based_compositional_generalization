@@ -5,7 +5,7 @@ import json
 import logging
 from omegaconf import OmegaConf
 import numpy as np
-from src.utils.logging_utils import setup_data_logging
+from src.utils.storage_utils import get_directory_path
 
 class DataStorage:
     """Handles file I/O operations and directory structure."""
@@ -18,26 +18,9 @@ class DataStorage:
         
     def _setup_directory_paths(self):
         """Compute and create directory paths."""
-        base_name = "nalph_{}_seqlen_{}_fnlen_{}_taskmaxlen_{}".format(
-            self.cfg.n_alphabets,
-            self.cfg.seq_len,
-            self.cfg.n_functions,
-            self.cfg.task_max_length,
-        )
-        
-        base_path = "{}/data/{}/{}/{}".format(
-            self.root_dir,
-            self.cfg.function_type,
-            self.cfg.prompt_length,
-            base_name,
-        )
-        
-        self.step_fdir = "{}/step_by_step/{}".format(base_path, self.dir_flag)
-        self.direct_fdir = "{}/direct/{}".format(base_path, self.dir_flag)
-        
-        # Create directories
-        os.makedirs(self.step_fdir, exist_ok=True)
-        os.makedirs(self.direct_fdir, exist_ok=True)    
+        base_path = get_directory_path(self.cfg, key='data', prefix_dir='data')
+        self.step_fdir = os.path.join(base_path, "step_by_step", self.dir_flag)
+        self.direct_fdir = os.path.join(base_path, "direct", self.dir_flag)
         
     def store_data(self, corpus, token, token_idx, functions_info):
         """Store all generated data to disk."""

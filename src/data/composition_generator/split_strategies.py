@@ -8,12 +8,15 @@ and custom strategies.
 
 import itertools
 import json
+from src.data.equivalence_classes.composition_equivalence_classes import CompositionEquivalenceClasses
 import random
 from abc import ABC, abstractmethod
 from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
+import os
+import pickle
 from init import ROOT_DIR
 TRAIN_TEST_RATIO = 0.8
 
@@ -169,13 +172,13 @@ class PermutationSplitStrategy(BaseSplitStrategy):
             if self.strategy == "permutationrandom_6_1":
                 np.random.shuffle(all_relative_order)
                 with open(
-                    f"{ROOT_DIR}/data/jsons/relative_order_{self.strategy}_{self.cfg.function.type}.json",
+                    f"{ROOT_DIR}/data/jsons/relative_order_{self.strategy}_{self.cfg.function_type}.json",
                     "w",
                 ) as f:
                     json.dump(all_relative_order, f)
             else:
                 with open(
-                    f"{ROOT_DIR}/data/jsons/relative_order_permutationrandom_6_1_{self.cfg.function.type}.json",
+                    f"{ROOT_DIR}/data/jsons/relative_order_permutationrandom_6_1_{self.cfg.function_type}.json",
                     "r",
                 ) as f:
                     all_relative_order = json.load(f)
@@ -183,7 +186,7 @@ class PermutationSplitStrategy(BaseSplitStrategy):
 
         elif self.strategy.startswith("permutationrotated"):
             with open(
-                f"{ROOT_DIR}/data/jsons/relative_order_permutationrandom_6_1_{self.cfg.function.type}.json",
+                f"{ROOT_DIR}/data/jsons/relative_order_permutationrandom_6_1_{self.cfg.function_type}.json",
                 "r",
             ) as f:
                 all_relative_order = json.load(f)
@@ -569,6 +572,135 @@ class CustomSplitStrategy(BaseSplitStrategy):
 
         return train_functions, test_functions
 
+class DisJointSplitStrategy(BaseSplitStrategy):
+    """Disjoint splitting strategy."""
+
+    def __init__(self, cfg, function_names: List[str]):
+        self.MODE = "odd"
+        self.function_names = function_names
+        self.cfg = cfg
+        
+    def split(
+        self, all_functions: List[List[str]], cfg
+    ) -> Tuple[List[List[str]], List[List[str]]]:
+        """Split using disjoint strategy."""
+        K = int(self.cfg.split_strategy.split("_")[1])
+        
+        
+        strategy_prefix = cfg.split_strategy.split("_")[0]
+        shared_equivalence_classes_percentage = int(self.cfg.split_strategy.split("_")[2])
+        shared_eq_float = round(float(shared_equivalence_classes_percentage)/100, 1)
+        if shared_equivalence_classes_percentage == 0:
+            # round to 1 decimal place
+            composition_equivalence_classes = CompositionEquivalenceClasses(K)
+            composition_equivalence_classes.load_ce_metric()
+            composition_equivalence_classes.convert_ce_metric_to_matrix()
+            composition_equivalence_classes.cluster_ce_metric_matrix()
+            composition_equivalence_classes.print_cluster_info()
+            train_task_indices, test_task_indices = composition_equivalence_classes.splitter.create_disjoint_splits(
+                seed=5, train_cluster_threshold=4, mode=self.MODE)
+            four_ratios = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+            six_ratios = [0.0, 0.1, 0.2, 0.4, 0.6, 0.7, 1.0]
+            if K == 4:
+                ratios = four_ratios
+            elif K == 6:
+                ratios = six_ratios
+            for percentage in ratios:
+                train_functions, test_functions, number_leaked_test_tasks = composition_equivalence_classes.split_train_test_functions(
+                    train_task_indices, test_task_indices, seed=5, shared_equivalence_classes_percentage=percentage, mode=self.MODE)
+                print(f"Percentage: {percentage}")
+                print(f"Number of leaked test tasks: {number_leaked_test_tasks}/{len(test_functions)} = {number_leaked_test_tasks / len(test_functions)}")
+
+                # save train and test functions to pkl file
+
+                dir_path = f"{ROOT_DIR}/data/equivalence_classes/{strategy_prefix}/{K}/{percentage}"
+                os.makedirs(dir_path, exist_ok=True)
+                with open(f"{dir_path}/train_functions.pkl", "wb") as f:
+                    pickle.dump(train_functions, f)
+                with open(f"{dir_path}/test_functions.pkl", "wb") as f:
+                    pickle.dump(test_functions, f)
+                # save number of leaked test tasks to txt file
+                number_leaked_test_tasks = number_leaked_test_tasks / len(test_functions)
+                with open(f"{dir_path}/number_leaked_test_tasks.json", "w") as f:
+                    json.dump({"number_leaked_test_tasks": number_leaked_test_tasks}, f)
+        dir_path = f"{ROOT_DIR}/data/equivalence_classes/{strategy_prefix}/{K}/{shared_eq_float}"
+        with open(f"{dir_path}/train_functions.pkl", "rb") as f:
+            train_functions = pickle.load(f)
+        with open(f"{dir_path}/test_functions.pkl", "rb") as f:
+            test_functions = pickle.load(f)
+        return train_functions, test_functions
+
+class DisJointSplitStrategy2(DisJointSplitStrategy):
+    """Disjoint splitting strategy (even mode)."""
+
+    def __init__(self, cfg, function_names: List[str]):
+        super().__init__(cfg, function_names)
+        self.MODE = "even"
+        self.cfg = cfg
+        self.function_names = function_names
+class DisJointSplitStrategy3(DisJointSplitStrategy):
+    """Disjoint splitting strategy (even mode)."""
+
+    def __init__(self, cfg, function_names: List[str]):
+        super().__init__(cfg, function_names)
+        self.MODE = "odd_reverse"
+        self.cfg = cfg
+        self.function_names = function_names
+
+
+class DisJointSplitStrategy4(DisJointSplitStrategy):
+    """Disjoint splitting strategy (even mode)."""
+
+    def __init__(self, cfg, function_names: List[str]):
+        super().__init__(cfg, function_names)
+        self.MODE = "even_reverse"
+        self.cfg = cfg
+        self.function_names = function_names
+
+class DisJointSplitStrategy5(DisJointSplitStrategy):
+    """Disjoint splitting strategy (even mode)."""
+
+    def __init__(self, cfg, function_names: List[str]):
+        super().__init__(cfg, function_names)
+        self.MODE = "odd_exchange"
+        self.cfg = cfg
+        self.function_names = function_names
+
+class DisJointSplitStrategy6(DisJointSplitStrategy):
+    """Disjoint splitting strategy (even mode)."""
+
+    def __init__(self, cfg, function_names: List[str]):
+        super().__init__(cfg, function_names)
+        self.MODE = "even_exchange"
+        self.cfg = cfg
+        self.function_names = function_names
+
+class DisJointSplitStrategy7(DisJointSplitStrategy):
+    """Disjoint splitting strategy (even mode)."""
+
+    def __init__(self, cfg, function_names: List[str]):
+        super().__init__(cfg, function_names)
+        self.MODE = "odd_exchange_reverse"
+        self.cfg = cfg
+        self.function_names = function_names
+
+class DisJointSplitStrategy8(DisJointSplitStrategy):    
+    """Disjoint splitting strategy (even mode)."""
+
+    def __init__(self, cfg, function_names: List[str]):
+        super().__init__(cfg, function_names)
+        self.MODE = "even_exchange_reverse"
+        self.cfg = cfg
+        self.function_names = function_names
+
+class DisJointSplitStrategy9(DisJointSplitStrategy):
+    """Disjoint splitting strategy (even mode)."""
+
+    def __init__(self, cfg, function_names: List[str]):
+        super().__init__(cfg, function_names)
+        self.MODE = "even"
+        self.cfg = cfg
+        self.function_names = function_names
 
 def get_split_strategy(cfg, function_names: List[str]) -> BaseSplitStrategy:
     """
@@ -593,5 +725,23 @@ def get_split_strategy(cfg, function_names: List[str]) -> BaseSplitStrategy:
         return UniqueEquivalenceSplitStrategy(cfg, function_names)
     elif cfg.split_strategy.startswith("custom"):
         return CustomSplitStrategy()
-    else:
+    elif cfg.split_strategy.startswith("disjoint3"):
+        return DisJointSplitStrategy3(cfg, function_names)
+    elif cfg.split_strategy.startswith("disjoint4"):
+        return DisJointSplitStrategy4(cfg, function_names)
+    elif cfg.split_strategy.startswith("disjoint2"):
+        return DisJointSplitStrategy2(cfg, function_names)
+    elif cfg.split_strategy.startswith("disjoint1"):
+        return DisJointSplitStrategy(cfg, function_names)
+    elif cfg.split_strategy.startswith("disjoint5"):
+        return DisJointSplitStrategy5(cfg, function_names)
+    elif cfg.split_strategy.startswith("disjoint6"):
+        return DisJointSplitStrategy6(cfg, function_names)
+    elif cfg.split_strategy.startswith("disjoint7"):
+        return DisJointSplitStrategy7(cfg, function_names)
+    elif cfg.split_strategy.startswith("disjoint8"):
+        return DisJointSplitStrategy8(cfg, function_names)
+    elif cfg.split_strategy.startswith("disjoint9"):
+        return DisJointSplitStrategy9(cfg, function_names)
+    else:   
         raise ValueError(f"Unknown split strategy: {cfg.split_strategy}")

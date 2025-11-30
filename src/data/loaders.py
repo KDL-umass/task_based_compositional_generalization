@@ -25,7 +25,10 @@ class SyntheticDataset:
     def __getitem__(self, idx):
         elem = torch.from_numpy(self.data[idx])
         dat, target = elem[:-1], elem[1:]
-        return dat, target
+        return dat, target, elem
+
+    def get_fully_mapped_dataset(self):
+        return [torch.from_numpy(np.array([int(idx) for idx in dat])) for dat in self.data]
 
 class MappedSyntheticDataset:
     """
@@ -58,6 +61,17 @@ class MappedSyntheticDataset:
         dat = torch.from_numpy(np.array([self.token_map[int(idx)] for idx in dat]))
         target = torch.from_numpy(np.array([self.token_map[int(idx)] for idx in target]))
     
+        return dat, target, elem
+
+    # write a function to get the fully mapped dataset rather than just getting the item
+    def get_fully_mapped_dataset(self):
+        return [torch.from_numpy(np.array([self.token_map[int(idx)] for idx in dat])) for dat in self.data]
+    # add another function to get prompt and target based on the seq_info
+    def get_prompt_and_target(self, seq_info):
+        dat = self.data[:, :seq_info["prompt_pos_end"]]
+        target = self.data[:, seq_info["prompt_pos_end"]:]
+        dat = torch.from_numpy(np.array([self.token_map[int(idx)] for idx in dat]))
+        target = torch.from_numpy(np.array([self.token_map[int(idx)] for idx in target]))
         return dat, target
 
 

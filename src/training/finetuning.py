@@ -1,11 +1,11 @@
-from src.data.corpus_generator.token_manager import DictionaryLoader
-from src.data.loaders import get_data_loader, MappedSyntheticDataset
-from src.models.pretrained import load_llama3_8b, load_gpt_oss_20b, load_granite_2b
-from src.training.trainer import configure_optimizers, move_to_device, update_cosine_warmup_lr, log_train, log_eval, save_model
 import torch
 import torch.nn.functional as F
-from init import ROOT_DIR
 import os
+from src.data.corpus_generator.token_manager import TokenManager
+from src.data.loaders import get_data_loader, MappedSyntheticDataset
+from src.models.pretrained import load_llama3_8b, load_gpt_oss_20b, load_granite_2b, load_gemma_1b
+from src.training.utils import configure_optimizers, move_to_device, update_cosine_warmup_lr, log_train, log_eval, save_model
+from src.utils.storage_utils import get_directory_path
 
 class FineTuner:
     def __init__(self, cfg, logger):
@@ -19,28 +19,30 @@ class FineTuner:
             self.model, self.tokenizer, self.config = load_gpt_oss_20b()
         elif self.cfg.model_name == "granite":
             self.model, self.tokenizer, self.config = load_granite_2b()
+        elif self.cfg.model_name == "gemma1":
+            self.model, self.tokenizer, self.config = load_gemma_1b()
         else:
             raise ValueError(f"Model {self.cfg.model_name} not supported")
         
     def load_dictionary_and_resize_tokenizer(self):
-        self.dictionary = DictionaryLoader(self.cfg.data_path)
+        self.dictionary = TokenManager(load_path=self.cfg.data_path)
         additional_tokens = []
         self.token_map = {}
         # check if token has mapping in model tokenizer
-        for token, idx in self.dictionary.token_idx_dict.items():
+        for token, idx in self.dictionary.token_idx.items():
             model_token_to_idx = self.tokenizer.convert_tokens_to_ids(token)
-            if model_token_to_idx is not None:
+            if model_token_to_idx is not None and token not in ["map1", "map2", "map3", "map4", "map5", "map6"] and model_token_to_idx != 3:
                 self.token_map[idx] = model_token_to_idx
             else:
                 additional_tokens.append(token)
         if additional_tokens:
             self.tokenizer.add_tokens(additional_tokens)
             self.model.resize_token_embeddings(len(self.tokenizer))
-        for token, idx in self.dictionary.token_idx_dict.items():
+        for token, idx in self.dictionary.token_idx.items():
             if token not in self.token_map:
                 self.token_map[idx] = self.tokenizer.convert_tokens_to_ids(token)
-        
-
+        print(f"token_map: {self.token_map}")
+    
     def load_dataloaders(self):
         loaders = []
         for split in ["train", "train_heldout", "test"]:
@@ -54,17 +56,8 @@ class FineTuner:
         return loaders
 
     def get_output_dir(self):
-        n_alphabets_seq_len_fn_len_task_max_length = (
-            self.cfg.data.n_alphabets_seq_len_fn_len_task_max_length
-        )
-        output_dir = "{}/models/ckpts/{}/{}/{}/{}/{}/".format(
-            ROOT_DIR,
-            self.cfg.function_type,
-            self.cfg.prompt_length,
-            n_alphabets_seq_len_fn_len_task_max_length,
-            self.cfg.prompt_mode,
-            self.cfg.train_split
-        )
+        output_dir = get_directory_path(self.cfg, key='train', prefix_dir='models/ckpts')
+        print(f"output_dir: {output_dir}")
         if not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
         return output_dir
@@ -77,12 +70,16 @@ class FineTuner:
         # then load the dataloaders after the tokenizer is resized
         loaders = self.load_dataloaders()
         train_loader = loaders[0]
-        sep_pos = self.dictionary.get_sep_pos(train_loader.dataset.data[0])
+        if isinstance(train_loader.dataset.data[0], torch.Tensor):
+            sample = train_loader.dataset.data[0].cpu().numpy()
+        else:
+            sample = train_loader.dataset.data[0]
+        self.seq_info = self.dictionary.get_seq_info(sample)
         # then configure the optimizers
         self.optimizer = configure_optimizers(self.model, self.cfg.optimizer)
-        self.train(train_loader, loaders, sep_pos)
+        self.train(train_loader, loaders)
 
-    def train(self, train_loader, loaders, sep_pos):
+    def train(self, train_loader, loaders):
         # set the model to training mode
         self.model.train()
         # set the device and data type
@@ -95,7 +92,7 @@ class FineTuner:
         train_loss = []
         # start the training loop
         for epoch in range(self.cfg.epochs):
-            for dat, targets in train_loader:
+            for dat, targets, elems in train_loader:
                 
                 # update the learning rate
                 it, lr = update_cosine_warmup_lr(it, self.cfg.optimizer, self.optimizer, total_steps)
@@ -125,42 +122,47 @@ class FineTuner:
 
                 # if it is time to evaluate
                 if it % self.cfg.log.eval_interval == 0:
-                    eval_info = self.evaluate(loaders[1:], device_info, sep_pos)
-                    log_eval(it, lr, eval_info, logger=self.logger, sharp_acc=True)
+                    eval_info = self.evaluate(loaders[1:], device_info)
+                    log_eval(it, lr, eval_info, logger=self.logger)
                 
 
         # log the final evaluation metrics
-        eval_info = self.evaluate(loaders[1:], device_info, sep_pos)
-        log_eval(it, lr, eval_info, logger=self.logger, sharp_acc=True)
-        save_model(self.cfg, self.model, self.optimizer, it, self.get_output_dir())
+        eval_info = self.evaluate(loaders[1:], device_info)
+        log_eval(it, lr, eval_info, logger=self.logger)
+        save_model(self.cfg, self.model, self.optimizer, it, self.get_output_dir(), self.token_map)
 
     @torch.no_grad()
-    def evaluate(self, evalLoaders, device_info, sep_pos):
+    def _predict(self, inputs, new_length):
+        """Predict the next tokens."""
+        self.model.eval()
+        for _ in range(new_length):
+            logits = self.model(inputs)
+            logits = logits.logits
+            next_token = torch.argmax(logits[:, -1, :], -1, keepdims=True)
+            inputs = torch.cat((inputs, next_token), dim=1)
+        return inputs
+
+    @torch.no_grad()
+    def evaluate(self, evalLoaders, device_info):
         all_loss, all_acc, all_sharp_acc = [], [], []
         device, dt = device_info
         self.model.eval()
         for idx, split in enumerate(("train_heldout", "test")):
             loader = evalLoaders[idx]
             sequences, total_loss, total_acc, sharp_acc = 0.0, 0.0, 0.0, 0.0
-            for dat, targets in loader:
+            for dat, targets, elems in loader:
                 dat, targets = move_to_device(dat, targets, device)
                 bs = dat.size(0)
                 with torch.amp.autocast(device_type=device, dtype=dt):
                     # get the logits B*T*V
                     logits = self.model(dat)
-                    logits = logits.logits[:, sep_pos:]
-                    # get the targets
-                    targets = targets[:, sep_pos:]
-                    # reshape the logits and targets 
-                    logits = logits.reshape(-1, logits.size(-1))
-                    targets = targets.reshape(-1)
-                    # compute the loss
-                    loss = F.cross_entropy(logits, targets)
+                    logits = logits.logits
+                    loss = F.cross_entropy(logits.reshape(-1, logits.size(-1)), targets.reshape(-1))
                     total_loss += loss.item() * bs
-                    # compute the accuracy
                     acc = logits.argmax(-1) == targets
                     total_acc += acc.float().mean().item() * bs
                     sharp_acc += acc.all(dim=-1).float().mean().item() * bs
+                    
                     
                 sequences += bs
             if sequences == 0:

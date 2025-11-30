@@ -65,7 +65,7 @@ class BaseCompositionsClass:
         return outputs
 
     def apply_function_composition(self, function_list, xstr1, xstr2=None):
-        if self.cfg.function_type == "diverse":
+        if self.cfg.function_type in ["diverse", "diverse2"]:
             return self.apply_function_composition_diverse(function_list, xstr1, xstr2)
         elif self.cfg.function_type == "uniform":
             return self.apply_function_composition_uniform(function_list, xstr1)

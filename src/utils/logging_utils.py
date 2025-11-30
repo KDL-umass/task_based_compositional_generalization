@@ -2,8 +2,7 @@
 import logging
 import os
 from typing import Optional
-from init import ROOT_DIR
-
+from src.utils.storage_utils import get_directory_path
 
 def setup_logger(
     log_dir: str,
@@ -15,24 +14,6 @@ def setup_logger(
     propagate: bool = False,
     add_stream_handler: bool = False,
 ) -> logging.Logger:
-    """
-    Set up a logger with file handler.
-    
-    Args:
-        log_dir: Directory where the log file will be created
-        log_filename: Name of the log file (default: "data.log")
-        logger_name: Name for the logger (default: None, uses module name)
-        level: Logging level (default: logging.INFO)
-        format_string: Format string for log messages
-        filemode: File mode ('w' for overwrite, 'a' for append)
-        propagate: Whether to propagate logs to parent logger
-        add_stream_handler: Whether to also log to stdout/stderr
-        
-    Returns:
-        Configured logger instance
-    """
-    # Create log directory if it doesn't exist
-    os.makedirs(log_dir, exist_ok=True)
     
     # Create logger
     logger = logging.getLogger(logger_name)
@@ -66,61 +47,6 @@ def setup_logger(
     
     return logger
 
-def get_directory_path(cfg: dict, key: str) -> str:
-    log_path = os.path.join(ROOT_DIR, "logs")
-    function_type = cfg.function_type
-    base_name = "nalph_{}_seqlen_{}_fnlen_{}_taskmaxlen_{}".format(
-        cfg.n_alphabets,
-        cfg.seq_len,
-        cfg.n_functions,
-        cfg.task_max_length,
-    )
-    prompt_mode = cfg.prompt_mode
-    prompt_length = cfg.prompt_length
-    # if train_split is present in cfg, use it, otherwise use split_strategy
-    if hasattr(cfg, 'train_split'):
-        train_split = cfg.train_split
-    else:
-        train_split = cfg.split_strategy
-
-    if key == 'eval':
-        pos_embedding_type = cfg.net.pos_embedding_type
-        eval_split = cfg.eval_split
-        log_file_dir = os.path.join(
-            log_path,
-            function_type,
-            base_name,
-            prompt_mode,
-            prompt_length,
-            f"model_{train_split}",
-            f"eval_{eval_split}",
-            pos_embedding_type,
-            f"seed_{cfg.seed}",
-        )
-    elif key == 'train':
-        pos_embedding_type = cfg.net.pos_embedding_type
-        log_file_dir = os.path.join(
-            log_path,
-            function_type,
-            base_name,
-            prompt_mode,
-            prompt_length,
-            f"model_{train_split}",
-            pos_embedding_type,
-            f"seed_{cfg.seed}",
-        )
-    elif key == 'data':
-        log_file_dir = os.path.join(
-            log_path,
-            function_type,
-            base_name,
-            prompt_mode,
-            prompt_length,
-            f"model_{train_split}",
-        )
-    return log_file_dir
-
-
 def setup_data_logging(
     cfg: dict,
     log_filename: str = "data.log",
@@ -138,7 +64,7 @@ def setup_data_logging(
     Returns:
         Configured logger instance
     """
-    log_path = get_directory_path(cfg, key='data')
+    log_path = get_directory_path(cfg, key='data', prefix_dir='logs')
     return setup_logger(log_path, log_filename=log_filename)
 
 
@@ -159,7 +85,7 @@ def setup_training_logging(
     Returns:
         Configured logger instance
     """
-    log_path = get_directory_path(cfg, key='train')
+    log_path = get_directory_path(cfg, key='train', prefix_dir='logs')
     return setup_logger(log_path, log_filename=log_filename)
 
 
@@ -180,7 +106,7 @@ def setup_evaluation_logging(
     Returns:
         Configured logger instance
     """
-    log_path = get_directory_path(cfg, key='eval')
+    log_path = get_directory_path(cfg, key='eval', prefix_dir='logs')
     
     logger = setup_logger(log_path, log_filename=log_filename)
     logger.info("Initializing SyntheticEval...")

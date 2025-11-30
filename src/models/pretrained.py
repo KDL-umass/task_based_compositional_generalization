@@ -15,11 +15,14 @@ from transformers import (
     AutoConfig,
     AutoModelForCausalLM,
     AutoTokenizer,
+    Gemma3ForCausalLM,
 )
+
 
 LLAMA3_MODEL_NAME = "meta-llama/Llama-3.1-8b"
 GPT_OSS_MODEL_NAME = "openai/gpt-oss-20b"
 GRANITE_MODEL_NAME = "ibm-granite/granite-3.1-2b-base"
+GEMMA_1B_MODEL_NAME = "google/gemma-3-1b-it"
 # Set environment variables to control cache locations
 def set_cache_env_vars(model_name: str):
     # Set HF_HOME to control all HuggingFace cache locations
@@ -29,6 +32,8 @@ def set_cache_env_vars(model_name: str):
         postfix = "gpt"
     elif model_name == GRANITE_MODEL_NAME:
         postfix = "ibm-granite"
+    elif model_name == GEMMA_1B_MODEL_NAME:
+        postfix = "gemma1"
     else:
         raise ValueError(f"Unknown model name: {model_name}")
     
@@ -160,6 +165,7 @@ def load_pretrained_model(
     torch_dtype=torch.bfloat16,
     **kwargs,
 ):
+    
     loader = PretrainedModelLoader(
         model_name=model_name, cache_dir=cache_dir, device=device, **kwargs
     )
@@ -191,6 +197,14 @@ def load_gpt_oss_20b(device: str = "cuda", cache_dir: Optional[str] = None, torc
 def load_granite_2b(device: str = "cuda", cache_dir: Optional[str] = None, torch_dtype=torch.bfloat16):
     return load_pretrained_model(
         model_name=GRANITE_MODEL_NAME,
+        cache_dir=cache_dir,
+        device=device,
+        torch_dtype=torch_dtype,
+    )
+
+def load_gemma_1b(device: str = "cuda", cache_dir: Optional[str] = None, torch_dtype=torch.bfloat16):
+    return load_pretrained_model(
+        model_name=GEMMA_1B_MODEL_NAME,
         cache_dir=cache_dir,
         device=device,
         torch_dtype=torch_dtype,
