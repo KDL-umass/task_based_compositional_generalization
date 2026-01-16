@@ -6,14 +6,14 @@ n_alphabets: 26        # Total number of tokens "a-z" + " "
 seq_len: 6              # Length of tokens in data prompt
 n_functions: 6  # Number of maximum functions per composition
 model_name: "gemma1"
-function_type: "diverse"
+function_type: "uniform"
 device : "cuda"
 bf16: True
 epochs: 5
-data_path: "/scratch4/workspace/ppruthi_umass_edu-CG/task_based_compositional_generalization/data/diverse/fixed/nalph_26_seqlen_6_fnlen_6_taskmaxlen_6/direct/disjoint2_6_100"
-output_dir: "/scratch4/workspace/ppruthi_umass_edu-CG/task_based_compositional_generalization/models/ckpts/diverse/fixed/nalph_26_seqlen_6_fnlen_6_taskmaxlen_6/direct/disjoint2_6_100/gemma1"
-prompt_mode: "direct"
-train_split: "disjoint2_6_100"
+data_path: "/scratch4/workspace/ppruthi_umass_edu-CG/task_based_compositional_generalization/data/diverse/fixed/nalph_26_seqlen_6_fnlen_6_taskmaxlen_6/step_by_step/coverage_6_5_0"
+output_dir: "/scratch4/workspace/ppruthi_umass_edu-CG/task_based_compositional_generalization/models/ckpts/diverse/fixed/nalph_26_seqlen_6_fnlen_6_taskmaxlen_6/step_by_step/coverage_6_5_0/gemma1"
+prompt_mode: "step_by_step"
+train_split: "coverage_6_5_0"
 task_max_length: 6
 num_workers: 4
 batch_size: 1

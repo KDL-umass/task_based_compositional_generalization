@@ -159,10 +159,15 @@ class TokenManager:
         sep_pos = np.where(sample == self.sep_idx)[0][-1]
         return sep_pos
 
-    def get_seq_info(self, sample):
+    def get_seq_info(self, sample, function_type):
         # Find last separator position
         sep_positions = np.where(sample == self.sep_idx)[0]
         last_sep_pos = sep_positions[-1] if len(sep_positions) > 0 else 0
+
+        if function_type == "uniform":
+            third_sep_pos = sep_positions[1]
+        else:
+            third_sep_pos = sep_positions[2]
         
         # Find end position
         end_positions = np.where(sample == self.end_idx)[0]
@@ -170,10 +175,11 @@ class TokenManager:
         
         # For direct/curriculum mode, prompt ends at last separator
         # For step_by_step, prompt ends after first function call
-        prompt_pos_end = last_sep_pos + 1
+        prompt_pos_end = third_sep_pos + 1
         
         # Calculate how many tokens to generate
-        new_len = end_pos - prompt_pos_end
+        extra_space_tokens = len(sample) - end_pos - 1
+        new_len = len(sample) - prompt_pos_end - extra_space_tokens
         
         return {
             "prompt_pos_end": prompt_pos_end,

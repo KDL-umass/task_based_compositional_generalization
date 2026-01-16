@@ -4,11 +4,11 @@
 #SBATCH --mem=100GB
 #SBATCH -p gpu
 #SBATCH -G 1 # Number of GPUs
-#SBATCH --constraint a100
+#SBATCH --constraint a40
 #SBATCH --nodes=1
-#SBATCH --job-name=finetune_model_gemma6_combination_6_uniform    
-#SBATCH --output=./a_logs/finetune_model_gemma6_combination_6_uniform.out
-#SBATCH --error=./a_logs/finetune_model_gemma6_combination_6_uniform.err
+#SBATCH --job-name=finetune_model_gemma1_coverage_6_5_0_uniform    
+#SBATCH --output=./a_logs/finetune_model_gemma1_coverage_6_5_0_uniform.out
+#SBATCH --error=./a_logs/finetune_model_gemma1_coverage_6_5_0_uniform.err
 module load conda/latest
 cd /scratch4/workspace/ppruthi_umass_edu-CG/task_based_compositional_generalization
 conda activate CG

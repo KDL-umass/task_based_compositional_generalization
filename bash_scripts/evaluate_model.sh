@@ -22,15 +22,14 @@ NHEADS_NLAYERS="nh6_nl3"
 # set task max length to 7 for identity-based train/test split
 # set task max length to k in split strategy for without identity based train/test split
 python -m scripts.evaluate_model \
-    --prompt_mode "direct" \
-    --train_split "combination_6" \
-    --eval_split "combination_6" \
+    --prompt_mode "step_by_step" \
+    --train_split "coverage_6_5_0" \
+    --eval_split "coverage_6_5_0" \
     --nheads_nlayers "$NHEADS_NLAYERS" \
     --pos_embedding_type "rel_global" \
-    --function_type "diverse" \
+    --function_type "uniform" \
     --task_max_length 6 \
-    --seed 0 \
-    --pretrained True
+    --seed 0 
     
 
 # # Command for representation analysis and equivalence class analysis to generate TSNE plots

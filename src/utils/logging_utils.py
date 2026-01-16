@@ -114,3 +114,22 @@ def setup_evaluation_logging(
     
     return logger
 
+def setup_analysis_logging(
+    cfg: dict,
+    log_filename: str = "analysis.log",
+) -> logging.Logger:
+    """
+    Set up logging for analysis tasks.
+    """
+    log_path = get_directory_path(cfg, key='analysis', prefix_dir='logs')
+    return setup_logger(log_path, log_filename=log_filename)
+
+def setup_visualization_logging(
+    cfg: dict,
+    log_filename: str = "visualization.log",
+) -> logging.Logger:
+    """
+    Set up logging for visualization tasks.
+    """
+    log_path = get_directory_path(cfg, key='visualization', prefix_dir='logs')
+    return setup_logger(log_path, log_filename=log_filename)

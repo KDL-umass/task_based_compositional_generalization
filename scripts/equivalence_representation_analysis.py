@@ -133,9 +133,6 @@ def get_equivalent_train_keys_based_on_test_keys(
     return equivalent_train_keys, equivalent_train_key_value_map, remaining_train_keys
 
 
-
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(

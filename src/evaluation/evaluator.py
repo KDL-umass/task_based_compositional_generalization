@@ -64,21 +64,22 @@ class Evaluator:
             self.token_map = ckpt["token_map"]
         else:
             self.token_map = None
-        print(self.token_map)
+        
         # get model class based on the model name and pretrained flag
         if self.cfg.pretrained:
             model, tokenizer, config = self.get_pretrained_model_class(self.net_cfg.model_name)
+
             self.model = model
+            self.logger.info(f"Token manager Original Tokens: {self.token_mgr.token}")
+            self.logger.info(f"Token manager Original Token indices: {self.token_mgr.token_idx}")
+            self.token_mgr.map_tokens(self.token_map, tokenizer)
+            self.logger.info(f"Token map: {self.token_map}")
+            self.logger.info(f"Token manager Tokens: {self.token_mgr.token}")
+            self.logger.info(f"Token manager Token indices: {self.token_mgr.token_idx}")
         else:
             self.model = nanoGPT(self.net_cfg.net)
 
-        self.logger.info(f"Token manager Original Tokens: {self.token_mgr.token}")
-        self.logger.info(f"Token manager Original Token indices: {self.token_mgr.token_idx}")
-        self.token_mgr.map_tokens(self.token_map, tokenizer)
-        self.logger.info(f"Token map: {self.token_map}")
-        self.logger.info(f"Token manager Tokens: {self.token_mgr.token}")
-        self.logger.info(f"Token manager Token indices: {self.token_mgr.token_idx}")
-
+        
         self.model.load_state_dict(ckpt["net"])
 
     
@@ -168,6 +169,7 @@ class Evaluator:
                 else seq_info["prompt_pos_end"])
         end = seq_info["end_pos"]
         
+        
         # Extract relevant portions
         output_tokens = outputs[:, start:end]
         target_tokens = targets[:, start:end]
@@ -208,8 +210,9 @@ class Evaluator:
         model.eval()
         model.to(self.device)
         
-        all_outputs, all_targets, all_comb_ids, all_comb_ids_map = [], [], [], []
-        
+        all_outputs, all_targets, all_comb_ids, all_docs_function_token = [], [], [], []
+        all_inputs = []
+        total_sum = 0
         with torch.no_grad():
             for batch_data, batch_targets, batch_elems in dataloader:
                 # Move to device
@@ -221,28 +224,36 @@ class Evaluator:
                 # Get sequence info from first sample
                 if not hasattr(self, '_seq_info'):
                     self._seq_info = self.token_mgr.get_seq_info(
-                        batch_elems[0].cpu().numpy()
+                        batch_elems[0].cpu().numpy(),
+                        self.cfg.function_type
                     )
                 
+                all_inputs.append(batch_data)
                 # Generate predictions
                 inputs = batch_data[:, :self._seq_info["prompt_pos_end"]]
                 outputs = self._predict(model, inputs, self._seq_info["new_len"])
                 
                 # Get combination IDs
                 batch_np = batch_elems.cpu().numpy()
-                comb_ids, comb_ids_map = map_docs_to_combination_id(batch_np, self.token_mgr, self.token_map)
+                comb_ids, docs_function_token = map_docs_to_combination_id(batch_np, self.token_mgr, self.token_map)
+                
                 
                 all_outputs.append(outputs)
                 all_targets.append(full_targets)
                 all_comb_ids.append(comb_ids)
-                all_comb_ids_map.append(comb_ids_map)
+                all_docs_function_token.append(docs_function_token)
         
         # Concatenate all batches
+        inputs = torch.cat(all_inputs, dim=0)
         outputs = torch.cat(all_outputs, dim=0)
         targets = torch.cat(all_targets, dim=0)
         combination_ids = np.concatenate(all_comb_ids)
-        # merge all combination ids maps
-        combination_ids_map = {**all_comb_ids_map[0], **all_comb_ids_map[1]}
+        docs_function_token = np.concatenate(all_docs_function_token)
+        # generate a unique combination ids map
+        combination_ids_map = {comb_id: doc_fn for doc_fn, comb_id in zip(docs_function_token, combination_ids)}
+        
+        with open("combination_ids_map.pkl", "wb") as f:
+            pickle.dump(combination_ids_map, f)
         
         # Calculate metrics
         metrics = self._calc_metrics(outputs, targets, self._seq_info, combination_ids)
@@ -251,7 +262,7 @@ class Evaluator:
             f"Eval {split}: Acc={metrics.sharp_accuracy:.4f} "
             f"OOD={metrics.ood_rate:.4f} MeanAcc={metrics.mean_accuracy:.4f}"
         )
-        self._log_predictions(split, dataloader.dataset.data, outputs, targets=targets)
+        self._log_predictions(split, inputs, outputs)
         
         return metrics, combination_ids_map
     
@@ -295,14 +306,14 @@ class Evaluator:
         # Combination-wise accuracy
         if metrics.combination_sharp_acc:
             self.logger.info("\nCombination Accuracies:")
-            for cid, acc in sorted(metrics.combination_sharp_acc.items()):
-                self.logger.info(f"  Combination {combination_ids_map.get(cid, cid)} {cid}: {acc:.4f}")
+            for cid, acc in metrics.combination_sharp_acc.items():
+                self.logger.info(f"  Combination {combination_ids_map[cid]} {cid}: {acc:.4f}")
         
         # Combination-wise mean accuracy
         if metrics.combination_mean_acc:
             self.logger.info("\nCombination Mean Accuracies:")
-            for cid, acc in sorted(metrics.combination_mean_acc.items()):
-                self.logger.info(f"  Combination {combination_ids_map.get(cid, cid)} {cid}: {acc:.4f}")
+            for cid, acc in metrics.combination_mean_acc.items():
+                self.logger.info(f"  Combination {combination_ids_map[cid]} {cid}: {acc:.4f}")
         
         # Overall summary
         self.logger.info(
@@ -326,16 +337,14 @@ class Evaluator:
         
         self.logger.info(f"Saved results to: {output_path}")
 
-    def _log_predictions(self, split, dat, output, targets=None):
+    def _log_predictions(self, split, inputs, outputs):
         """Log input/prediction pairs for debugging with colored error highlighting"""
         # if input data is of type torch.Tensor, convert to numpy
-        if isinstance(dat, torch.Tensor):
-            dat = dat.detach().cpu().numpy()
+        if isinstance(inputs, torch.Tensor):
+            inputs = inputs.detach().cpu().numpy()
         # if output is of type torch.Tensor, convert to numpy
-        if isinstance(output, torch.Tensor):
-            output = output.detach().cpu().numpy()
-        input_data = dat
-        predictions = output
+        if isinstance(outputs, torch.Tensor):
+            outputs = outputs.detach().cpu().numpy()
 
         # ANSI color codes for highlighting
         RED = "\033[91m"
@@ -345,18 +354,14 @@ class Evaluator:
         BOLD = "\033[1m"
         END = "\033[0m"
 
-        for idx in range(len(dat))[:10]:
+        for idx in range(len(inputs))[:10]:
             self.logger.info("=======================================================")
             self.logger.info(f"{split}")
 
             # Decode input and prediction
-            input_decoded = self.token_mgr.decode(input_data[idx])
-            pred_decoded = self.token_mgr.decode(predictions[idx])
+            input_decoded = self.token_mgr.decode(inputs[idx])
+            pred_decoded = self.token_mgr.decode(outputs[idx])
 
             self.logger.info("Input: {}".format(input_decoded))
-            if targets is not None:
-                label_decoded = self.token_mgr.decode(targets[idx])
-                self.logger.info("Label: {}".format(label_decoded))
-            # print normal prediction first
-            self.logger.info("Predi: {}".format(pred_decoded))
+            self.logger.info("Prediction: {}".format(pred_decoded))
             self.logger.info("=======================================================\n\n")

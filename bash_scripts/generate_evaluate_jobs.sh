@@ -2,25 +2,17 @@
 
 # Parameters
 PROMPT_LENGTHS=("fixed")
-PROMPT_MODES=("direct")
+PROMPT_MODES=("step_by_step" "direct")
 POS_EMBEDDING_TYPES=("rel_global" "abs")
 
-TRAIN_SPLIT_STRATEGIES=("disjoint1_4_0" "disjoint1_4_20" "disjoint1_4_40" "disjoint1_4_60" "disjoint1_4_80" "disjoint1_4_100")
-TRAIN_SPLIT_STRATEGIES+=("disjoint3_4_0" "disjoint3_4_20" "disjoint3_4_40" "disjoint3_4_60" "disjoint3_4_80" "disjoint3_4_100")
-TRAIN_SPLIT_STRATEGIES+=("disjoint4_4_0" "disjoint4_4_20" "disjoint4_4_40" "disjoint4_4_60" "disjoint4_4_80" "disjoint4_4_100")
-TRAIN_SPLIT_STRATEGIES+=("disjoint5_4_0" "disjoint5_4_20" "disjoint5_4_40" "disjoint5_4_60" "disjoint5_4_80" "disjoint5_4_100")
-TRAIN_SPLIT_STRATEGIES+=("disjoint6_4_0" "disjoint6_4_20" "disjoint6_4_40" "disjoint6_4_60" "disjoint6_4_80" "disjoint6_4_100")
-TRAIN_SPLIT_STRATEGIES+=("disjoint7_4_0" "disjoint7_4_20" "disjoint7_4_40" "disjoint7_4_60" "disjoint7_4_80" "disjoint7_4_100")
-TRAIN_SPLIT_STRATEGIES+=("disjoint8_4_0" "disjoint8_4_20" "disjoint8_4_40" "disjoint8_4_60" "disjoint8_4_80" "disjoint8_4_100")
-TRAIN_SPLIT_STRATEGIES+=("disjoint9_4_0" "disjoint9_4_20" "disjoint9_4_40" "disjoint9_4_60" "disjoint9_4_80" "disjoint9_4_100")
-
-FUNCTION_TYPES=("diverse")
+TRAIN_SPLIT_STRATEGIES=("reversepaircoverage_6_0")
+FUNCTION_TYPES=("uniform")
 N_ALPHABETS=26
 SEQ_LEN=6
 N_FUNCTIONS=6
 NHEADS_NLAYERS="nh6_nl3"
-SEEDS=(0)
-split_strategy_prefix="disjoint_4_diverse_fixed_all"
+SEEDS=(0 10 20 30 40)
+split_strategy_prefix="reversepaircoverage_6_0_uniform_fixed"
 
 mkdir -p evaluation_jobs/${split_strategy_prefix}/
 mkdir -p a_logs/evaluation/${split_strategy_prefix}/
@@ -44,7 +36,7 @@ for split in "${TRAIN_SPLIT_STRATEGIES[@]}"; do
               
               cat <<EOF > "$job_file"
 #!/bin/bash
-#SBATCH -t 16:00:00
+#SBATCH -t 1:00:00
 #SBATCH -p gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem=100GB

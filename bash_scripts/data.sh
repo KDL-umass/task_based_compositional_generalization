@@ -4,13 +4,21 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem 100GB
 #SBATCH --cpus-per-task 4
-#SBATCH --job-name=data_test
-#SBATCH --output=./a_logs/data_test.out
-#SBATCH --error=./a_logs/data_test.err
+#SBATCH --job-name=data_generation
+#SBATCH --output=./a_logs/data_generation_all_6.out
+#SBATCH --error=./a_logs/data_generation_all_6.err
 module load conda/latest
 cd /scratch4/workspace/ppruthi_umass_edu-CG/task_based_compositional_generalization
 conda activate CG
+# for module_number in {1..5}; do
+#     for pos_number in {0..5}; do
+#         python -m scripts.generate_data --split_strategy reversecoverage_6_${module_number}_${pos_number} --task_max_length 6 --function_type uniform
+#     done
 
+python -m scripts.generate_data --split_strategy reversepaircoverage_6_0 --task_max_length 6 --function_type uniform
+
+
+# python -m scripts.generate_data --split_strategy permutation_6_600 --task_max_length 6 --function_type uniform
 # Generate data for within-k and cross-k evaluation with identity functions as task max length=7
 # for prompt_length in "fixed"; do
 #     echo "Generating data for prompt_length: $prompt_length"
@@ -48,7 +56,7 @@ conda activate CG
 #     python3 -m scripts.generate_data --split_strategy disjoint9_4_$percentage --task_max_length 4 --function_type diverse
 # done
 
-python3 -m scripts.generate_data --split_strategy disjoint5_6_0 --task_max_length 6 --function_type diverse
+# python3 -m scripts.generate_data --split_strategy disjoint5_6_0 --task_max_length 6 --function_type diverse
 
 
 # # Generate data for random sampling of compositions for K=6 for various train-test split ratios

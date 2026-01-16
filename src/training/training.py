@@ -58,7 +58,7 @@ class Trainer:
 
     def load_dataloaders(self):
         loaders = []
-        for split in ["train", "train_heldout", "test"]:
+        for split in ["train", "test"]:
             dataset = SyntheticDataset(self.cfg.data_path, split=split, mode=self.cfg.prompt_mode)
             loader = get_data_loader(dataset, self.cfg.data.batch_size, self.cfg.data.num_workers)
             loaders.append(loader)
@@ -149,7 +149,7 @@ class Trainer:
         all_loss, all_acc, all_sharp_acc = [], [], []
         device, dt = device_info
         self.model.eval()
-        for idx, split in enumerate(("train", "train_heldout", "test")):
+        for idx, split in enumerate(("train", "test")):
             loader = evalLoaders[idx]
             sequences, total_loss, total_acc, sharp_acc = 0.0, 0.0, 0.0, 0.0
             for dat, targets, elems in loader:
@@ -185,18 +185,15 @@ class Trainer:
         info = {
             "loss": {
                 "train": all_loss[0],
-                "train_heldout": all_loss[1],
-                "test": all_loss[2],
+                "test": all_loss[1],
             },
             "acc": {
                 "train": all_acc[0],
-                "train_heldout": all_acc[1],
-                "test": all_acc[2],
+                "test": all_acc[1],
             },
             "sharp_acc": {
                 "train": all_sharp_acc[0],
-                "train_heldout": all_sharp_acc[1],
-                "test": all_sharp_acc[2],
+                "test": all_sharp_acc[1],
             },
         }
         self.model.train()

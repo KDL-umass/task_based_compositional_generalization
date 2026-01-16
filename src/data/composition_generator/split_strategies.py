@@ -572,6 +572,208 @@ class CustomSplitStrategy(BaseSplitStrategy):
 
         return train_functions, test_functions
 
+class PairCoverageSplitStrategy(BaseSplitStrategy):
+    def __init__(self, cfg, function_names: List[str]):
+        self.function_names = function_names
+        self.cfg = cfg
+        # cosider all possible permutations of pairs of positions
+        self.pair_map = {
+            0: [0, 1],
+            1: [1, 0],
+            2: [0, 2],
+            3: [2, 0],
+            4: [0, 3],
+            5: [3, 0],
+            6: [0, 4],
+            7: [4, 0],
+            8: [0, 5],
+            9: [5, 0],
+            10: [1, 2],
+            11: [2, 1],
+            12: [1, 3],
+            13: [3, 1],
+            14: [1, 4],
+            15: [4, 1],
+            16: [1, 5],
+            17: [5, 1],
+            18: [2, 3],
+            19: [3, 2],
+            20: [2, 4],
+            21: [4, 2],
+            22: [2, 5],
+            23: [5, 2],
+            24: [3, 4],
+            25: [4, 3],
+            26: [3, 5],
+            27: [5, 3],
+            28: [4, 5],
+            29: [5, 4],
+        }
+
+    def split(self, all_functions: List[List[str]], cfg
+    ) -> Tuple[List[List[str]], List[List[str]]]:
+        K = int(self.cfg.split_strategy.split("_")[1])
+        # filter all functions where length is not K without identity
+        num_i_functions = [
+            fn_list
+            for fn_list in all_functions
+            if len(fn_list) - fn_list.count("identity") == K
+        ]
+        pair_number = int(self.cfg.split_strategy.split("_")[2])
+        
+        module_0 = self.function_names[self.pair_map[pair_number][0]]
+        module_1 = self.function_names[self.pair_map[pair_number][1]]
+        print(f"Module 0: {module_0}, Module 1: {module_1}")
+        
+        # get all functions where module_0 is followed by module_1
+        train_functions = []
+        for fn in num_i_functions:
+            for i in range(len(fn) - 1):
+                if fn[i] == module_0 and fn[i+1] == module_1:
+                    train_functions.append(fn)
+                    break
+        test_functions = [fn for fn in num_i_functions if fn not in  train_functions]
+        # Add last 20 train functions to test functions
+        train_functions = train_functions[:-20]
+        test_functions = test_functions + train_functions[-20:]
+        print(f"Train functions: {len(train_functions)}")
+        print(f"Test functions: {len(test_functions)}")
+        return train_functions, test_functions
+
+class ReversePairCoverageSplitStrategy(BaseSplitStrategy):
+    def __init__(self, cfg, function_names: List[str]):
+        self.function_names = function_names
+        self.cfg = cfg
+        # cosider all possible permutations of pairs of positions
+        self.pair_map = {
+            0: [0, 1],
+            1: [1, 0],
+            2: [0, 2],
+            3: [2, 0],
+            4: [0, 3],
+            5: [3, 0],
+            6: [0, 4],
+            7: [4, 0],
+            8: [0, 5],
+            9: [5, 0],
+            10: [1, 2],
+            11: [2, 1],
+            12: [1, 3],
+            13: [3, 1],
+            14: [1, 4],
+            15: [4, 1],
+            16: [1, 5],
+            17: [5, 1],
+            18: [2, 3],
+            19: [3, 2],
+            20: [2, 4],
+            21: [4, 2],
+            22: [2, 5],
+            23: [5, 2],
+            24: [3, 4],
+            25: [4, 3],
+            26: [3, 5],
+            27: [5, 3],
+            28: [4, 5],
+            29: [5, 4],
+        }
+
+    def split(self, all_functions: List[List[str]], cfg
+    ) -> Tuple[List[List[str]], List[List[str]]]:
+        K = int(self.cfg.split_strategy.split("_")[1])
+        # filter all functions where length is not K without identity
+        num_i_functions = [
+            fn_list
+            for fn_list in all_functions
+            if len(fn_list) - fn_list.count("identity") == K
+        ]
+        pair_number = int(self.cfg.split_strategy.split("_")[2])
+        
+        module_0 = self.function_names[self.pair_map[pair_number][0]]
+        module_1 = self.function_names[self.pair_map[pair_number][1]]
+        print(f"Module 0: {module_0}, Module 1: {module_1}")
+        
+        # get all functions where module_0 is followed by module_1
+        test_functions = []
+        for fn in num_i_functions:
+            for i in range(len(fn) - 1):
+                if fn[i] == module_0 and fn[i+1] == module_1:
+                    test_functions.append(fn)
+                    break
+        train_functions = [fn for fn in num_i_functions if fn not in  test_functions]
+        print(f"Train functions: {len(train_functions)}")
+        print(f"Test functions: {len(test_functions)}")
+        return train_functions, test_functions
+
+
+class PositionCoverageSplitStrategy(BaseSplitStrategy):
+    def __init__(self, cfg, function_names: List[str]):
+        self.function_names = function_names
+        self.cfg = cfg
+
+    def split(self, all_functions: List[List[str]], cfg
+    ) -> Tuple[List[List[str]], List[List[str]]]:
+        K = int(self.cfg.split_strategy.split("_")[1])
+        # filter all functions where length is not K without identity
+        num_i_functions = [
+            fn_list
+            for fn_list in all_functions
+            if len(fn_list) - fn_list.count("identity") == K
+        ]
+        module_number = int(self.cfg.split_strategy.split("_")[2])
+        position_number = int(self.cfg.split_strategy.split("_")[3])
+        module = self.function_names[module_number]
+        
+        # get all functions where module is present at given position
+        test_functions = [fn for fn in num_i_functions if module == fn[position_number]]
+        train_functions = [fn for fn in num_i_functions if fn not in test_functions]
+        return train_functions, test_functions
+
+class AllSplitStrategy(BaseSplitStrategy):
+    def __init__(self, cfg, function_names: List[str]):
+        self.function_names = function_names
+        self.cfg = cfg
+
+    def split(self, all_functions: List[List[str]], cfg
+    ) -> Tuple[List[List[str]], List[List[str]]]:
+        K = int(self.cfg.split_strategy.split("_")[1])
+        # filter all functions where length is not K without identity
+        num_i_functions = [
+            fn_list
+            for fn_list in all_functions
+            if len(fn_list) - fn_list.count("identity") == K
+        ]
+        return num_i_functions, num_i_functions
+
+class ReversePositionCoverageSplitStrategy(BaseSplitStrategy):
+    def __init__(self, cfg, function_names: List[str]):
+        self.function_names = function_names
+        self.cfg = cfg
+
+    def split(self, all_functions: List[List[str]], cfg
+    ) -> Tuple[List[List[str]], List[List[str]]]:
+        K = int(self.cfg.split_strategy.split("_")[1])
+        # filter all functions where length is not K without identity
+        num_i_functions = [
+            fn_list
+            for fn_list in all_functions
+            if len(fn_list) - fn_list.count("identity") == K
+        ]
+        module_number = int(self.cfg.split_strategy.split("_")[2])
+        position_number = int(self.cfg.split_strategy.split("_")[3])
+        module = self.function_names[module_number]
+        
+        # get all functions where module is present at given position
+        train_functions = [fn for fn in num_i_functions if module == fn[position_number]]
+        test_functions = [fn for fn in num_i_functions if fn not in train_functions]
+        # Add last 20 train functions to test functions
+        train_functions = train_functions[:-20]
+        test_functions = test_functions + train_functions[-20:]
+        print(f"Train functions: {len(train_functions)}")
+        print(f"Test functions: {len(test_functions)}")
+        return train_functions, test_functions
+
+
 class DisJointSplitStrategy(BaseSplitStrategy):
     """Disjoint splitting strategy."""
 
@@ -725,6 +927,14 @@ def get_split_strategy(cfg, function_names: List[str]) -> BaseSplitStrategy:
         return UniqueEquivalenceSplitStrategy(cfg, function_names)
     elif cfg.split_strategy.startswith("custom"):
         return CustomSplitStrategy()
+    elif cfg.split_strategy.startswith("coverage"):
+        return PositionCoverageSplitStrategy(cfg, function_names)
+    elif cfg.split_strategy.startswith("reversecoverage"):
+        return ReversePositionCoverageSplitStrategy(cfg, function_names)
+    elif cfg.split_strategy.startswith("reversepaircoverage"):
+        return ReversePairCoverageSplitStrategy(cfg, function_names)
+    elif cfg.split_strategy.startswith("paircoverage"):
+        return PairCoverageSplitStrategy(cfg, function_names)
     elif cfg.split_strategy.startswith("disjoint3"):
         return DisJointSplitStrategy3(cfg, function_names)
     elif cfg.split_strategy.startswith("disjoint4"):
@@ -743,5 +953,7 @@ def get_split_strategy(cfg, function_names: List[str]) -> BaseSplitStrategy:
         return DisJointSplitStrategy8(cfg, function_names)
     elif cfg.split_strategy.startswith("disjoint9"):
         return DisJointSplitStrategy9(cfg, function_names)
+    elif cfg.split_strategy.startswith("all"):
+        return AllSplitStrategy(cfg, function_names)
     else:   
         raise ValueError(f"Unknown split strategy: {cfg.split_strategy}")

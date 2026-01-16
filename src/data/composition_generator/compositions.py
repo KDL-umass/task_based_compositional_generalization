@@ -146,10 +146,10 @@ def main():
     cfg_path = "{}/config/gen/conf.yaml".format(ROOT_DIR)
     # read the config file
     cfg = read_config(cfg_path)
-    cfg.prompt_length = "variable"
-    cfg.split_strategy = "combination_3"
+    cfg.prompt_length = "fixed"
+    cfg.split_strategy = "coverage_6_0_0"
     cfg.function_type = "uniform"
-    cfg.task_max_length = 7
+    cfg.task_max_length = 6
     # create the functions
     create_functions = CompositionsGenerator(cfg)
     train_functions, test_functions, functions_info = create_functions.get_train_test_compositions()

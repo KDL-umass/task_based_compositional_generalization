@@ -45,6 +45,16 @@ class FunctionCombinationGenerator:
             return self._generate_systematic()
         elif strategy.startswith("disjoint"):
             return self._generate_systematic()
+        elif strategy.startswith("coverage"):
+            return self._generate_systematic()
+        elif strategy.startswith("paircoverage"):
+            return self._generate_systematic()
+        elif strategy.startswith("reversepaircoverage"):
+            return self._generate_systematic()
+        elif strategy.startswith("reversecoverage"):
+            return self._generate_systematic()
+        elif strategy.startswith("all"):
+            return self._generate_systematic()
         else:
             raise ValueError(f"Unknown strategy: {strategy}")
 

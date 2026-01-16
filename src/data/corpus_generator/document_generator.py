@@ -55,7 +55,10 @@ class DocumentGenerator:
     
     def _pad_outputs(self, outputs):
         """Add padding to outputs based on strategy."""
-        pad_length = 2 * self.cfg.seq_len
+        if self.cfg.function_type in ["diverse", "diverse2"]:
+            pad_length = 2 * self.cfg.seq_len
+        else:
+            pad_length = self.cfg.seq_len
             
         for i in range(len(outputs)):
             if self.cfg.prompt_length == "fixed":

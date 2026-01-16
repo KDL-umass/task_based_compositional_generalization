@@ -77,8 +77,24 @@ def get_directory_path(cfg: dict, key: str, prefix_dir: str = "logs") -> str:
             f"eval_{cfg.eval_split}",
         )
         output_dir = os.path.join(output_dir, _get_model_suffix(cfg))
+    elif key == 'analysis':
+        output_dir = os.path.join(
+            base_path,
+            prompt_mode,
+            f"train_{train_split}",
+            f"eval_{cfg.eval_split}",
+        )
+        output_dir = os.path.join(output_dir, _get_model_suffix(cfg))
+    elif key == 'visualization':
+        output_dir = os.path.join(
+            base_path,
+            prompt_mode,
+            f"train_{train_split}",
+            f"eval_{cfg.eval_split}",
+        )
+        output_dir = os.path.join(output_dir, _get_model_suffix(cfg))
     else:
-        raise ValueError(f"Invalid key: {key}. Must be one of: 'train', 'eval', 'data'")
+        raise ValueError(f"Invalid key: {key}. Must be one of: 'train', 'eval', 'data', 'analysis', 'visualization'")
     
     os.makedirs(output_dir, exist_ok=True)
     return output_dir

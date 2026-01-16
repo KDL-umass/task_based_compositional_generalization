@@ -210,7 +210,7 @@ if __name__ == "__main__":
     cfg.function_type = args.function_type
 
     # Split strategy values to try (permutation_6_{X})
-    split_sizes = [1, 10, 100, 200, 300, 400, 500, 600, 700]
+    split_sizes = ["0_0", "0_1", "0_2", "0_3", "0_4", "0_5"]
     
     for epsilon in [1e-10]:
         results = {}
@@ -240,15 +240,17 @@ if __name__ == "__main__":
                 results[f"{prompt_mode}_{function_type}"] = {}
                 for pos_embedding_type in ['abs', 'rel_global']:
                     results[f"{prompt_mode}_{function_type}"][pos_embedding_type] = {}
-                    for strategy_sufix in ["random", "systematic"]:
+                    for strategy_sufix in ["coverage"]:
                         
                         results[f"{prompt_mode}_{function_type}"][pos_embedding_type][strategy_sufix] = []
 
                         for s in split_sizes:
                             if strategy_sufix == "random":
                                 split_strategy = f"permutationrandom_6_{s}"
-                            else:
+                            elif strategy_sufix == "systematic":
                                 split_strategy = f"permutation_6_{s}"
+                            elif strategy_sufix == "coverage":
+                                split_strategy = f"coverage_6_{s}"
                             cfg.split_strategy = split_strategy
                             compositions_generator = CompositionsGenerator(cfg)
                             train_functions, test_functions, functions_info = compositions_generator.get_train_test_compositions()
@@ -267,15 +269,18 @@ if __name__ == "__main__":
                                 systematic_metrics[prompt_mode][function_type][pos_embedding_type].append((s, divergence, pairwise_divergence, position_divergence))
                             else:
                                 random_metrics[prompt_mode][function_type][pos_embedding_type].append((s, divergence, pairwise_divergence, position_divergence))
-                            mean_test_accuracy, std_test_accuracy = module_coverage_metric_calculation.get_test_accuracy(function_type, split_strategy, prompt_mode, pos_embedding_type)
+                            # mean_test_accuracy, std_test_accuracy = module_coverage_metric_calculation.get_test_accuracy(function_type, split_strategy, prompt_mode, pos_embedding_type)
+                            mean_test_accuracy = 0
+                            std_test_accuracy = 0
                             print(f"Strategy: {split_strategy}, Prompt mode: {prompt_mode}, Function type: {function_type}, Pos embedding type: {pos_embedding_type}, Divergence: {divergence}, Mean test accuracy: {mean_test_accuracy}, Std test accuracy: {std_test_accuracy}")
                             results[f"{prompt_mode}_{function_type}"][pos_embedding_type][strategy_sufix].append((divergence, mean_test_accuracy, std_test_accuracy))
-
+        with open(f'coverage_metrics_{epsilon}.pkl', 'wb') as f:
+            pickle.dump(results, f)
         # save as pkl
-        with open(f'systematic_metrics_{epsilon}.pkl', 'wb') as f:
-            pickle.dump(systematic_metrics, f)
-        with open(f'random_metrics_{epsilon}.pkl', 'wb') as f:
-            pickle.dump(random_metrics, f)
+        # with open(f'systematic_metrics_{epsilon}.pkl', 'wb') as f:
+        #     pickle.dump(systematic_metrics, f)
+        # with open(f'random_metrics_{epsilon}.pkl', 'wb') as f:
+        #     pickle.dump(random_metrics, f)
         
         # plot divergence vs accuracy have systematic and random in the same plot
         # have pos embedding type in the same plot

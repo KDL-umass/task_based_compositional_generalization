@@ -32,7 +32,7 @@ def map_docs_to_combination_id(docs, token_manager, token_map=None):
     combination_ids_map = {
         cid: docs_function_token[i] for i, cid in enumerate(combination_ids)
     }
-    return combination_ids, combination_ids_map
+    return combination_ids, docs_function_token
 
 
 def calculate_combination_accuracy(

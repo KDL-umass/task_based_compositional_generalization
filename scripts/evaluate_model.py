@@ -37,7 +37,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--nheads_nlayers",
         type=str,
-        default="nh12_nl12",
+        default="nh6_nl3",
         help="number of heads and layers",
     )
     parser.add_argument(
