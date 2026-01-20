@@ -1,0 +1,506 @@
+import argparse
+import ast
+import builtins
+import importlib
+import json
+import logging
+import multiprocessing as mp
+import os
+import pickle
+import random
+import time
+from typing import Any, Dict, List, Tuple, Optional
+
+from datasets import load_dataset
+from omegaconf import OmegaConf
+
+from init import ROOT_DIR, read_config, set_seed
+
+
+SAFE_IMPORT_ALLOWLIST = {
+    "math",
+    "itertools",
+    "functools",
+    "collections",
+    "heapq",
+    "bisect",
+    "operator",
+    "typing",
+    "random",
+    "numpy",
+}
+
+BUILTINS_BLACKLIST = {
+    "eval",
+    "exec",
+    "open",
+    "input",
+    "compile",
+    "breakpoint",
+    "help",
+    "exit",
+    "quit",
+}
+
+
+def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+    root = name.split(".")[0]
+    if root not in SAFE_IMPORT_ALLOWLIST:
+        raise ImportError(f"Import of '{name}' is not allowed")
+    return importlib.import_module(name)
+
+
+def build_safe_builtins() -> Dict[str, Any]:
+    safe_builtins = dict(builtins.__dict__)
+    for key in BUILTINS_BLACKLIST:
+        safe_builtins.pop(key, None)
+    safe_builtins["__import__"] = safe_import
+    return safe_builtins
+
+
+def parse_input_call(input_str: str) -> Tuple[str, List[Any], Dict[str, Any]]:
+    expr = ast.parse(input_str, mode="eval").body
+    if not isinstance(expr, ast.Call):
+        raise ValueError("Input is not a function call")
+    if isinstance(expr.func, ast.Name):
+        func_name = expr.func.id
+    elif isinstance(expr.func, ast.Attribute):
+        func_name = expr.func.attr
+    else:
+        raise ValueError("Unsupported function call")
+    args = [ast.literal_eval(arg) for arg in expr.args]
+    kwargs = {kw.arg: ast.literal_eval(kw.value) for kw in expr.keywords}
+    return func_name, args, kwargs
+
+
+def _bounded_int_range(value: int, cfg) -> Tuple[int, int]:
+    scale = max(10, abs(value) * 2)
+    low = -scale if value < 0 else 0
+    high = scale
+    if cfg.int_low is not None:
+        low = max(low, cfg.int_low)
+    if cfg.int_high is not None:
+        high = min(high, cfg.int_high)
+    if low > high:
+        low, high = high, low
+    return low, high
+
+
+def _bounded_float_range(value: float, cfg) -> Tuple[float, float]:
+    scale = max(10.0, abs(value) * 2.0)
+    low = -scale if value < 0 else 0.0
+    high = scale
+    if cfg.float_low is not None:
+        low = max(low, cfg.float_low)
+    if cfg.float_high is not None:
+        high = min(high, cfg.float_high)
+    if low > high:
+        low, high = high, low
+    return low, high
+
+
+def randomize_value(value: Any, rng: random.Random, cfg) -> Any:
+    if isinstance(value, bool):
+        return rng.choice([True, False])
+    if isinstance(value, int):
+        low, high = _bounded_int_range(value, cfg)
+        return rng.randint(low, high)
+    if isinstance(value, float):
+        low, high = _bounded_float_range(value, cfg)
+        return rng.uniform(low, high)
+    if isinstance(value, str):
+        if not value:
+            return value
+        return "".join(rng.choice(cfg.string_alphabet) for _ in range(len(value)))
+    if isinstance(value, list):
+        return [randomize_value(v, rng, cfg) for v in value]
+    if isinstance(value, tuple):
+        return tuple(randomize_value(v, rng, cfg) for v in value)
+    if isinstance(value, dict):
+        return {k: randomize_value(v, rng, cfg) for k, v in value.items()}
+    return value
+
+
+def build_input_str(func_name: str, args: List[Any], kwargs: Dict[str, Any]) -> str:
+    args_str = ", ".join(repr(a) for a in args)
+    kwargs_str = ", ".join(f"{k} = {repr(v)}" for k, v in kwargs.items())
+    if args_str and kwargs_str:
+        return f"{func_name}({args_str}, {kwargs_str})"
+    if args_str:
+        return f"{func_name}({args_str})"
+    return f"{func_name}({kwargs_str})"
+
+
+def _exec_worker(code: str, func_name: str, args: List[Any], kwargs: Dict[str, Any], result_q):
+    try:
+        exec_globals = {"__builtins__": build_safe_builtins()}
+        exec_globals["typing"] = importlib.import_module("typing")
+        exec_globals["List"] = exec_globals["typing"].List
+        exec_globals["Dict"] = exec_globals["typing"].Dict
+        exec_globals["Tuple"] = exec_globals["typing"].Tuple
+        exec_globals["Set"] = exec_globals["typing"].Set
+        exec_globals["Optional"] = exec_globals["typing"].Optional
+        exec_globals["Deque"] = exec_globals["typing"].Deque
+        exec_globals["DefaultDict"] = exec_globals["typing"].DefaultDict
+        exec_globals["Counter"] = exec_globals["typing"].Counter
+        exec_globals["Iterable"] = exec_globals["typing"].Iterable
+        exec_globals["Iterator"] = exec_globals["typing"].Iterator
+        exec_globals["Sequence"] = exec_globals["typing"].Sequence
+        exec_globals["Mapping"] = exec_globals["typing"].Mapping
+        exec_globals["MutableMapping"] = exec_globals["typing"].MutableMapping
+        exec_globals["MutableSequence"] = exec_globals["typing"].MutableSequence
+        exec_globals["MutableSet"] = exec_globals["typing"].MutableSet
+        exec_globals["collections"] = importlib.import_module("collections")
+        exec_globals["math"] = importlib.import_module("math")
+        exec_globals["functools"] = importlib.import_module("functools")
+        exec_globals["itertools"] = importlib.import_module("itertools")
+        exec_globals["numpy"] = importlib.import_module("numpy")
+        exec_globals["np"] = exec_globals["numpy"]
+        exec_globals["heapq"] = importlib.import_module("heapq")
+        exec_globals["bisect"] = importlib.import_module("bisect")
+        exec_globals["operator"] = importlib.import_module("operator")
+        exec_globals["deque"] = exec_globals["collections"].deque
+        exec_globals["defaultdict"] = exec_globals["collections"].defaultdict
+        exec_globals["Counter"] = exec_globals["collections"].Counter
+        exec_globals["gcd"] = exec_globals["math"].gcd
+        exec_globals["inf"] = exec_globals["math"].inf
+        exec_globals["comb"] = exec_globals["math"].comb
+        exec_globals["prod"] = exec_globals["math"].prod
+        exec_globals["reduce"] = exec_globals["functools"].reduce
+        exec_globals["cache"] = exec_globals["functools"].cache
+        exec_globals["lru_cache"] = exec_globals["functools"].lru_cache
+        exec_globals["accumulate"] = exec_globals["itertools"].accumulate
+        exec_globals["islice"] = exec_globals["itertools"].islice
+        exec_globals["combinations"] = exec_globals["itertools"].combinations
+        exec_globals["heapify"] = exec_globals["heapq"].heapify
+        exec_globals["heappush"] = exec_globals["heapq"].heappush
+        exec_globals["heappop"] = exec_globals["heapq"].heappop
+        exec(code, exec_globals, exec_globals)
+        target = exec_globals.get(func_name)
+        if target is None:
+            solution_cls = exec_globals.get("Solution")
+            if solution_cls is not None:
+                target = getattr(solution_cls(), func_name, None)
+        if target is None:
+            raise ValueError(f"Function '{func_name}' not found")
+        result = target(*args, **kwargs)
+        result_q.put(("ok", result))
+    except Exception as exc:
+        result_q.put(("err", repr(exc)))
+
+
+def run_with_timeout(code: str, func_name: str, args: List[Any], kwargs: Dict[str, Any], timeout: float):
+    try:
+        ctx = mp.get_context("fork")
+    except ValueError:
+        ctx = mp.get_context("spawn")
+    result_q = ctx.Queue()
+    proc = ctx.Process(
+        target=_exec_worker,
+        args=(code, func_name, args, kwargs, result_q),
+    )
+    proc.start()
+    proc.join(timeout)
+    if proc.is_alive():
+        proc.terminate()
+        proc.join()
+        return False, "Timeout"
+    if result_q.empty():
+        return False, "No result"
+    status, payload = result_q.get()
+    if status == "ok":
+        return True, payload
+    return False, payload
+
+
+def select_split_ids(question_ids: List[Any], cfg, rng: random.Random) -> List[Any]:
+    if cfg.holdout_question_ids:
+        return list(cfg.holdout_question_ids)
+    unique_ids = list(set(question_ids))
+    rng.shuffle(unique_ids)
+    return unique_ids[: cfg.holdout_size]
+
+
+def get_record_id(record: Dict[str, Any], idx: int, id_field: str) -> Any:
+    if id_field == "__index__":
+        return idx
+    value = record.get(id_field)
+    if value is None and id_field != "id":
+        value = record.get("id")
+    if value is None:
+        return idx
+    return value
+
+
+def generate_augmented_samples(
+    base_samples: List[Dict[str, Any]],
+    target_count: int,
+    cfg,
+    seed: int,
+    id_field: str,
+    logger: logging.Logger,
+    label: str,
+) -> List[Dict[str, Any]]:
+    rng = random.Random(seed)
+    results = []
+    seen = set()
+    max_attempts = target_count * cfg.max_attempts_per_sample
+    attempts = 0
+    if not base_samples:
+        logger.warning("%s split has no base samples; skipping generation.", label)
+        return results
+    start_time = time.time()
+    log_every = max(1, target_count // 2000)
+    attempt_log_every = max(1000, log_every * 5)
+    logged_first = False
+    logger.info(
+        "[%s] starting generation target=%d max_attempts=%d",
+        label,
+        target_count,
+        max_attempts,
+    )
+    while len(results) < target_count and attempts < max_attempts:
+        sample = rng.choice(base_samples)
+        sample_id = sample.get(id_field)
+        if sample_id is None:
+            sample_id = sample.get("id")
+        if sample_id is None:
+            sample_id = rng.randrange(0, 1_000_000_000)
+        try:
+            func_name, args, kwargs = parse_input_call(sample["input"])
+        except Exception:
+            logger.warning("Failed to parse input call: %s", sample["input"])
+            attempts += 1
+            continue
+        target_func_name = sample["function_name"] or func_name
+
+        for _ in range(max(1, cfg.retry_per_sample)):
+            if attempts % 1000 == 0 and attempts > 0:
+                elapsed = time.time() - start_time
+                rate = len(results) / elapsed if elapsed > 0 else 0.0
+                logger.info(
+                    "[%s] heartbeat attempts=%d success=%d rate=%.2f samples/s",
+                    label,
+                    attempts,
+                    len(results),
+                    rate,
+                )
+            if attempts >= max_attempts or len(results) >= target_count:
+                break
+            attempts += 1
+            new_args = [randomize_value(a, rng, cfg) for a in args]
+            new_kwargs = {k: randomize_value(v, rng, cfg) for k, v in kwargs.items()}
+            new_input = build_input_str(target_func_name, new_args, new_kwargs)
+            key = (sample_id, new_input)
+            if key in seen:
+                continue
+            ok, output = run_with_timeout(
+                sample["code"],
+                target_func_name,
+                new_args,
+                new_kwargs,
+                cfg.timeout_seconds,
+            )
+            if not ok:
+                logger.warning(
+                    'Failed to execute sample_id=%s input="%s": %s',
+                    sample_id,
+                    new_input,
+                    output,
+                )
+                _dump_failure(
+                    cfg,
+                    sample_id,
+                    label,
+                    str(output),
+                    sample["code"],
+                    sample["input"],
+                    new_input,
+                )
+                if attempts % attempt_log_every == 0:
+                    elapsed = time.time() - start_time
+                    rate = len(results) / elapsed if elapsed > 0 else 0.0
+                    logger.info(
+                        "[%s] attempts=%d success=%d rate=%.2f samples/s last_error=%s",
+                        label,
+                        attempts,
+                        len(results),
+                        rate,
+                        output,
+                    )
+                continue
+            seen.add(key)
+            record = dict(sample)
+            record["orig_input"] = sample["input"]
+            record["orig_output"] = sample["output"]
+            record["split_id"] = sample_id
+            record["input"] = new_input
+            record["output"] = output
+            results.append(record)
+            if not logged_first or len(results) % log_every == 0:
+                elapsed = time.time() - start_time
+                rate = len(results) / elapsed if elapsed > 0 else 0.0
+                logger.info(
+                    "[%s] progress %d/%d (attempts=%d, rate=%.2f samples/s)",
+                    label,
+                    len(results),
+                    target_count,
+                    attempts,
+                    rate,
+                )
+                logger.info(
+                    "[%s] sample input: %s",
+                    label,
+                    new_input,
+                )
+                logger.info(
+                    "[%s] sample output: %s",
+                    label,
+                    repr(output),
+                )
+                logged_first = True
+            break
+    if attempts >= max_attempts and len(results) < target_count:
+        elapsed = time.time() - start_time
+        logger.warning(
+            "[%s] stopped after max_attempts=%d with %d/%d samples (elapsed=%.1fs)",
+            label,
+            max_attempts,
+            len(results),
+            target_count,
+            elapsed,
+        )
+    return results
+
+
+def get_output_dir(cfg, shard_id: int, num_shards: int) -> str:
+    return os.path.join(
+        ROOT_DIR,
+        "data",
+        "livecodebench",
+        f"holdout_{cfg.holdout_size}",
+        f"seed_{cfg.seed}",
+        f"shards_{num_shards}",
+        f"shard_{shard_id}",
+    )
+
+
+def get_shard_count(total: int, shard_id: int, num_shards: int) -> int:
+    base = total // num_shards
+    remainder = total % num_shards
+    return base + (1 if shard_id < remainder else 0)
+
+
+def _dump_failure(
+    cfg,
+    sample_id: Any,
+    label: str,
+    reason: str,
+    code: str,
+    orig_input: str,
+    new_input: str,
+):
+    if not cfg.debug_dump_failures:
+        return
+    dump_dir = os.path.join(ROOT_DIR, "a_logs", "livecodebench_failures")
+    os.makedirs(dump_dir, exist_ok=True)
+    fname = f"{label}_sample_{sample_id}.txt"
+    path = os.path.join(dump_dir, fname)
+    with open(path, "w") as f:
+        f.write("reason: " + reason + "\n")
+        f.write("orig_input: " + orig_input + "\n")
+        f.write("new_input: " + new_input + "\n\n")
+        f.write(code)
+
+
+def main(cfg, shard_id: int, num_shards: int):
+    set_seed(cfg.seed)
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        force=True,
+    )
+    logger = logging.getLogger("livecodebench_gen")
+    logger.setLevel(logging.INFO)
+    ds = load_dataset(cfg.dataset_name)
+    if isinstance(ds, dict):
+        split_name = "train" if "train" in ds else list(ds.keys())[0]
+        ds = ds[split_name]
+    records = list(ds)
+    id_field = "__index__"
+    question_ids = [get_record_id(r, idx, id_field) for idx, r in enumerate(records)]
+
+    rng = random.Random(cfg.seed)
+    holdout_ids = set(select_split_ids(question_ids, cfg, rng))
+    train_base = [
+        r for idx, r in enumerate(records)
+        if get_record_id(r, idx, id_field) not in holdout_ids
+    ]
+    test_base = [
+        r for idx, r in enumerate(records)
+        if get_record_id(r, idx, id_field) in holdout_ids
+    ]
+
+    logger.info("Dataset size: %d", len(records))
+    logger.info("Split field: %s", id_field)
+    logger.info("Holdout size: %d", len(holdout_ids))
+    logger.info("Train base size: %d", len(train_base))
+    logger.info("Test base size: %d", len(test_base))
+    logger.info("Target train samples: %d", cfg.train_size)
+    logger.info("Target test samples: %d", cfg.test_size)
+    logger.info("Shard %d/%d", shard_id, num_shards)
+
+    shard_train_size = get_shard_count(cfg.train_size, shard_id, num_shards)
+    shard_test_size = get_shard_count(cfg.test_size, shard_id, num_shards)
+    logger.info("Shard train target: %d", shard_train_size)
+    logger.info("Shard test target: %d", shard_test_size)
+
+    train_samples = generate_augmented_samples(
+        train_base, shard_train_size, cfg, cfg.seed + 1 + shard_id, id_field, logger, "train"
+    )
+    test_samples = generate_augmented_samples(
+        test_base, shard_test_size, cfg, cfg.seed + 2 + shard_id, id_field, logger, "test"
+    )
+
+    output_dir = get_output_dir(cfg, shard_id, num_shards)
+    os.makedirs(output_dir, exist_ok=True)
+    logger.info("Writing outputs to: %s", output_dir)
+
+    with open(os.path.join(output_dir, "train.pkl"), "wb") as f:
+        pickle.dump(train_samples, f)
+    with open(os.path.join(output_dir, "test.pkl"), "wb") as f:
+        pickle.dump(test_samples, f)
+    with open(os.path.join(output_dir, "split_question_ids.pkl"), "wb") as f:
+        pickle.dump(
+            {"holdout": list(holdout_ids), "id_field": id_field, "shard_id": shard_id, "num_shards": num_shards},
+            f,
+        )
+    with open(os.path.join(output_dir, "config.json"), "w") as f:
+        json.dump(OmegaConf.to_container(cfg, resolve=True), f, indent=2)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=os.path.join(ROOT_DIR, "config", "gen", "livecodebench.yaml"),
+    )
+    parser.add_argument("--holdout_size", type=int, default=None)
+    parser.add_argument("--train_size", type=int, default=None)
+    parser.add_argument("--test_size", type=int, default=None)
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--shard_id", type=int, default=0)
+    parser.add_argument("--num_shards", type=int, default=1)
+    args = parser.parse_args()
+
+    cfg = read_config(args.config)
+    if args.holdout_size is not None:
+        cfg.holdout_size = args.holdout_size
+    if args.train_size is not None:
+        cfg.train_size = args.train_size
+    if args.test_size is not None:
+        cfg.test_size = args.test_size
+    if args.seed is not None:
+        cfg.seed = args.seed
+    main(cfg, args.shard_id, args.num_shards)

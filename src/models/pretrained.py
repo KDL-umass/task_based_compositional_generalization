@@ -214,5 +214,6 @@ if __name__ == "__main__":
     # Example usage
     print("Testing model loader...")
     print("=" * 50)
-    model, tokenizer, config = load_llama3_8b()
+    model, tokenizer, config = load_granite_2b()
+    # model, tokenizer, config = load_llama3_8b()
     # model, tokenizer, config = load_gpt_oss_20b()

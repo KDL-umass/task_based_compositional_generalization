@@ -1,0 +1,24 @@
+# LiveCodeBench data generation configuration
+seed: 0
+dataset_name: "livecodebench/execution-v2"
+
+# Split settings (by question_id)
+holdout_size: 96
+holdout_question_ids: []  # Optional explicit list to use instead of random sampling
+
+# Generation targets
+train_size: 100000
+test_size: 10000
+max_attempts_per_sample: 20
+retry_per_sample: 3
+
+# Execution sandbox
+timeout_seconds: 10.0
+debug_dump_failures: false
+
+# Input generation
+int_low: 0
+int_high: 1000000
+float_low: 0.0
+float_high: 1000000.0
+string_alphabet: "abcdefghijklmnopqrstuvwxyz"

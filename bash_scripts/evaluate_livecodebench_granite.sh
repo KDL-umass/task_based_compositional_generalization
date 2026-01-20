@@ -1,19 +1,18 @@
 #!/bin/bash
-#SBATCH  -t 1:00:00
+#SBATCH  -t 12:00:00
 #SBATCH -p gpu
 #SBATCH --gres=gpu:1
 #SBATCH --mem 100GB
 #SBATCH --constraint "vram8&sm_70"
-#SBATCH --cpus-per-task 4
-#SBATCH --job-name=load_pretrained_model
-#SBATCH --output=./a_logs/load_pretrained_model.out
-#SBATCH --error=./a_logs/load_pretrained_model.err
-# export HF_HOME=/datasets/ai/llama3
-# export HF_HOME=/datasets/ai/ibm-granite
+#SBATCH --cpus-per-task 1
+#SBATCH --job-name=eval_livecodebench_granite
+#SBATCH --output=./a_logs/eval_livecodebench_granite.out
+#SBATCH --error=./a_logs/eval_livecodebench_granite.err
+
 export HF_HOME=/work/pi_pgrabowicz_umass_edu/awyuan/task_based_compositional_generalization/cache/huggingface
 echo $HF_HOME
 module load conda/latest
 cd /work/pi_pgrabowicz_umass_edu/awyuan/task_based_compositional_generalization
 conda activate /work/pi_pgrabowicz_umass_edu/awyuan/conda_environments/cg-env
-python -m src.models.pretrained $HF_HOME
 
+python -m scripts.evaluate_livecodebench --model_name granite --split test
