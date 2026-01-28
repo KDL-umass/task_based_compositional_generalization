@@ -1,0 +1,31 @@
+# LiveCodeBench finetuning configuration
+seed: 0
+pretrained: true
+model_name: "granite"
+device: "cuda"
+bf16: true
+epochs: 5
+batch_size: 16
+num_workers: 2
+max_seq_len: 256
+include_fewshot: true
+
+# Data location
+holdout_size: 96
+data_seed: 0
+train_data_path: ""  # Optional explicit path to train.pkl
+test_data_path: ""   # Optional explicit path to test.pkl
+
+optimizer:
+  learning_rate: 0.00002
+  weight_decay: 0.1
+  beta1: 0.9
+  beta2: 0.95
+  grad_clip: 1.0
+  decay_lr: true
+  warmup_iters: 500
+  min_lr: 0.000006
+
+log:
+  eval_interval: 200
+  log_interval: 50

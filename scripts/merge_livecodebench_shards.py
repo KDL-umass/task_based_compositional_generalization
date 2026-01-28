@@ -10,11 +10,16 @@ def load_pickle(path):
         return pickle.load(f)
 
 
-def main(holdout_size: int, seed: int, num_shards: int):
+def main(holdout_size: int, seed: int, num_shards: int, data_subdir: str):
     base_dir = os.path.join(
         ROOT_DIR,
         "data",
         "livecodebench",
+    )
+    if data_subdir:
+        base_dir = os.path.join(base_dir, data_subdir)
+    base_dir = os.path.join(
+        base_dir,
         f"holdout_{holdout_size}",
         f"seed_{seed}",
         f"shards_{num_shards}",
@@ -37,6 +42,11 @@ def main(holdout_size: int, seed: int, num_shards: int):
         ROOT_DIR,
         "data",
         "livecodebench",
+    )
+    if data_subdir:
+        out_dir = os.path.join(out_dir, data_subdir)
+    out_dir = os.path.join(
+        out_dir,
         f"holdout_{holdout_size}",
         f"seed_{seed}",
     )
@@ -55,5 +65,6 @@ if __name__ == "__main__":
     parser.add_argument("--holdout_size", type=int, default=96)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--num_shards", type=int, default=1)
+    parser.add_argument("--data_subdir", type=str, default="")
     args = parser.parse_args()
-    main(args.holdout_size, args.seed, args.num_shards)
+    main(args.holdout_size, args.seed, args.num_shards, args.data_subdir)

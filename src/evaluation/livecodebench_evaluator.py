@@ -13,6 +13,7 @@ from src.models.pretrained import (
     load_granite_2b,
     load_gemma_1b,
     load_llama3_8b,
+    load_deepseek_coder_1_3b
 )
 
 
@@ -52,6 +53,8 @@ class LiveCodeBenchEvaluator:
             model, tokenizer, _ = load_granite_2b()
         elif self.cfg.model_name == "gemma1":
             model, tokenizer, _ = load_gemma_1b()
+        elif self.cfg.model_name == "deepseek_coder":
+            model, tokenizer, _ = load_deepseek_coder_1_3b()
         else:
             raise ValueError(f"Unsupported model_name: {self.cfg.model_name}")
         model.eval()

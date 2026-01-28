@@ -221,6 +221,88 @@ def select_split_ids(question_ids: List[Any], cfg, rng: random.Random) -> List[A
     return unique_ids[: cfg.holdout_size]
 
 
+def build_equiv_leakage_split(
+    records: List[Dict[str, Any]],
+    id_field: str,
+    heldout_functions: List[str],
+    shared_fraction: float,
+    holdout_size: int,
+    rng: random.Random,
+    logger: logging.Logger,
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], set]:
+    heldout_set = set(heldout_functions)
+    record_ids = [get_record_id(r, idx, id_field) for idx, r in enumerate(records)]
+    func_to_indices: Dict[str, List[int]] = {}
+    for idx, record in enumerate(records):
+        func_name = record.get("function_name")
+        if func_name in heldout_set:
+            func_to_indices.setdefault(func_name, []).append(idx)
+
+    test_records: List[Dict[str, Any]] = []
+    test_ids: set = set()
+
+    for func_name, indices in func_to_indices.items():
+        total = len(indices)
+        n_test = max(1, int((1.0 - shared_fraction) * total))
+        n_train = total - n_test
+        for idx in indices[n_train:]:
+            rec_id = record_ids[idx]
+            if rec_id in test_ids:
+                continue
+            test_ids.add(rec_id)
+            test_records.append(records[idx])
+        logger.info(
+            "Leakage split %s: total=%d train=%d test=%d",
+            func_name,
+            total,
+            n_train,
+            n_test,
+        )
+
+    if len(test_records) < holdout_size:
+        remaining_indices = [
+            idx
+            for idx, rec_id in enumerate(record_ids)
+            if rec_id not in test_ids
+            and records[idx].get("function_name") not in heldout_set
+        ]
+        needed = holdout_size - len(test_records)
+        if needed > len(remaining_indices):
+            logger.warning(
+                "Requested holdout_size=%d but only %d records available after leakage split.",
+                holdout_size,
+                len(test_records) + len(remaining_indices),
+            )
+            needed = len(remaining_indices)
+        extra_indices = rng.sample(remaining_indices, k=needed) if needed > 0 else []
+        for idx in extra_indices:
+            rec_id = record_ids[idx]
+            if rec_id in test_ids:
+                continue
+            test_ids.add(rec_id)
+            test_records.append(records[idx])
+    elif len(test_records) > holdout_size:
+        logger.warning(
+            "Leakage split produced %d test records; truncating to holdout_size=%d.",
+            len(test_records),
+            holdout_size,
+        )
+        ordered_indices = []
+        for idx, rec_id in enumerate(record_ids):
+            if rec_id in test_ids:
+                ordered_indices.append(idx)
+            if len(ordered_indices) >= holdout_size:
+                break
+        test_records = [records[idx] for idx in ordered_indices]
+        test_ids = {record_ids[idx] for idx in ordered_indices}
+
+    train_records = [
+        r for r, rec_id in zip(records, record_ids)
+        if rec_id not in test_ids
+    ]
+    return train_records, test_records, test_ids
+
+
 def get_record_id(record: Dict[str, Any], idx: int, id_field: str) -> Any:
     if id_field == "__index__":
         return idx
@@ -230,6 +312,29 @@ def get_record_id(record: Dict[str, Any], idx: int, id_field: str) -> Any:
     if value is None:
         return idx
     return value
+
+
+def load_json_list(path: str, key: Optional[str] = None, label: str = "values") -> List[Any]:
+    with open(path, "r") as f:
+        payload = json.load(f)
+    if isinstance(payload, dict):
+        if key and key in payload:
+            payload = payload[key]
+        elif "ids" in payload:
+            payload = payload["ids"]
+        elif "id" in payload:
+            payload = payload["id"]
+    if not isinstance(payload, list):
+        if key:
+            detail = f"a list or dict with a '{key}' field"
+        else:
+            detail = "a list"
+        raise ValueError(f"Expected {label} JSON to be {detail}")
+    return payload
+
+
+def load_filtered_ids(path: str) -> List[Any]:
+    return load_json_list(path, label="filtered ids")
 
 
 def generate_augmented_samples(
@@ -374,10 +479,18 @@ def generate_augmented_samples(
 
 
 def get_output_dir(cfg, shard_id: int, num_shards: int) -> str:
+    mode = getattr(cfg, "mode", "random")
+    mode_suffix = mode
+    if mode == "equiv_leakage":
+        shared = getattr(cfg, "shared_fraction", None)
+        if shared is None:
+            shared = "unknown"
+        mode_suffix = f"{mode}_shared_{shared}"
     return os.path.join(
         ROOT_DIR,
         "data",
         "livecodebench",
+        mode_suffix,
         f"holdout_{cfg.holdout_size}",
         f"seed_{cfg.seed}",
         f"shards_{num_shards}",
@@ -427,22 +540,54 @@ def main(cfg, shard_id: int, num_shards: int):
         split_name = "train" if "train" in ds else list(ds.keys())[0]
         ds = ds[split_name]
     records = list(ds)
-    id_field = "__index__"
+    id_field = "id"
+    if cfg.filtered_ids_json:
+        total_records = len(records)
+        filtered_ids = set(load_filtered_ids(cfg.filtered_ids_json))
+        records = [
+            r for idx, r in enumerate(records)
+            if get_record_id(r, idx, id_field) in filtered_ids
+        ]
+        logger.info("Filtered ids file: %s", cfg.filtered_ids_json)
+        logger.info("Filtered base size: %d (from %d)", len(records), total_records)
     question_ids = [get_record_id(r, idx, id_field) for idx, r in enumerate(records)]
 
     rng = random.Random(cfg.seed)
-    holdout_ids = set(select_split_ids(question_ids, cfg, rng))
-    train_base = [
-        r for idx, r in enumerate(records)
-        if get_record_id(r, idx, id_field) not in holdout_ids
-    ]
-    test_base = [
-        r for idx, r in enumerate(records)
-        if get_record_id(r, idx, id_field) in holdout_ids
-    ]
+    mode = getattr(cfg, "mode", "random")
+    if mode == "equiv_leakage":
+        if not getattr(cfg, "heldout_function_names_json", None):
+            raise ValueError("equiv_leakage mode requires heldout_function_names_json")
+        if getattr(cfg, "shared_fraction", None) is None:
+            raise ValueError("equiv_leakage mode requires shared_fraction")
+        if not 0.0 <= cfg.shared_fraction <= 1.0:
+            raise ValueError("shared_fraction must be between 0 and 1")
+        heldout_functions = load_json_list(
+            cfg.heldout_function_names_json,
+            label="heldout function names",
+        )
+        train_base, test_base, holdout_ids = build_equiv_leakage_split(
+            records,
+            id_field,
+            heldout_functions,
+            cfg.shared_fraction,
+            cfg.holdout_size,
+            rng,
+            logger,
+        )
+    else:
+        holdout_ids = set(select_split_ids(question_ids, cfg, rng))
+        train_base = [
+            r for idx, r in enumerate(records)
+            if get_record_id(r, idx, id_field) not in holdout_ids
+        ]
+        test_base = [
+            r for idx, r in enumerate(records)
+            if get_record_id(r, idx, id_field) in holdout_ids
+        ]
 
     logger.info("Dataset size: %d", len(records))
     logger.info("Split field: %s", id_field)
+    logger.info("Split mode: %s", mode)
     logger.info("Holdout size: %d", len(holdout_ids))
     logger.info("Train base size: %d", len(train_base))
     logger.info("Test base size: %d", len(test_base))
@@ -492,6 +637,31 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--shard_id", type=int, default=0)
     parser.add_argument("--num_shards", type=int, default=1)
+    parser.add_argument(
+        "--mode",
+        type=str,
+        default=None,
+        choices=["random", "equiv_leakage"],
+        help="Split mode: random (default) or equiv_leakage.",
+    )
+    parser.add_argument(
+        "--filtered_ids_json",
+        type=str,
+        default=None,
+        help="Optional JSON file containing a list of LiveCodeBench ids to include.",
+    )
+    parser.add_argument(
+        "--heldout_function_names_json",
+        type=str,
+        default=None,
+        help="JSON file with a list of function names used in equiv_leakage mode.",
+    )
+    parser.add_argument(
+        "--shared_fraction",
+        type=float,
+        default=None,
+        help="Fraction of samples per heldout function that remain shared (0-1).",
+    )
     args = parser.parse_args()
 
     cfg = read_config(args.config)
@@ -503,4 +673,11 @@ if __name__ == "__main__":
         cfg.test_size = args.test_size
     if args.seed is not None:
         cfg.seed = args.seed
+    if args.mode is not None:
+        cfg.mode = args.mode
+    cfg.filtered_ids_json = args.filtered_ids_json
+    if args.heldout_function_names_json is not None:
+        cfg.heldout_function_names_json = args.heldout_function_names_json
+    if args.shared_fraction is not None:
+        cfg.shared_fraction = args.shared_fraction
     main(cfg, args.shard_id, args.num_shards)

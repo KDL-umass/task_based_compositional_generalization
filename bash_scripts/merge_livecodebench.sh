@@ -11,4 +11,7 @@ module load conda/latest
 cd /work/pi_pgrabowicz_umass_edu/awyuan/task_based_compositional_generalization
 conda activate /work/pi_pgrabowicz_umass_edu/awyuan/conda_environments/cg-env
 
-python -m scripts.merge_livecodebench_shards --num_shards 10 --holdout_size 96 --seed 0
+# python -m scripts.merge_livecodebench_shards --num_shards 10 --holdout_size 96 --seed 0
+python -m scripts.merge_livecodebench_shards --num_shards 4 --holdout_size 54 --seed 0 --data_subdir equiv_leakage_shared_0.0
+python -m scripts.merge_livecodebench_shards --num_shards 4 --holdout_size 54 --seed 0 --data_subdir equiv_leakage_shared_0.5
+python -m scripts.merge_livecodebench_shards --num_shards 4 --holdout_size 54 --seed 0 --data_subdir equiv_leakage_shared_1.0

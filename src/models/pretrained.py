@@ -23,6 +23,7 @@ LLAMA3_MODEL_NAME = "meta-llama/Llama-3.1-8B"
 GPT_OSS_MODEL_NAME = "openai/gpt-oss-20b"
 GRANITE_MODEL_NAME = "ibm-granite/granite-3.1-2b-base"
 GEMMA_1B_MODEL_NAME = "google/gemma-3-1b-it"
+DEEPSEEK_CODER_1_3B_MODEL_NAME = "deepseek-ai/deepseek-coder-1.3b-instruct"
 # Set environment variables to control cache locations
 def set_cache_env_vars(model_name: str):
     # Set HF_HOME to control all HuggingFace cache locations
@@ -34,15 +35,20 @@ def set_cache_env_vars(model_name: str):
         postfix = "ibm-granite"
     elif model_name == GEMMA_1B_MODEL_NAME:
         postfix = "gemma1"
+    elif model_name == DEEPSEEK_CODER_1_3B_MODEL_NAME:
+        postfix = "deepseek-coder-1.3b"
     else:
         raise ValueError(f"Unknown model name: {model_name}")
     
-    cache_dir = Path( str(ROOT_DIR) + f".cache/huggingface")
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    os.environ['HF_HOME'] = str(cache_dir)
-    os.environ['TRANSFORMERS_CACHE'] = str(cache_dir / "transformers")
-    os.environ['HF_DATASETS_CACHE'] = str(cache_dir / "datasets")
-    os.environ['TMPDIR'] = str(cache_dir / "tmp")
+    if "HF_HOME" in os.environ:
+        cache_dir = Path(os.environ["HF_HOME"])
+    else:
+        cache_dir = Path(str(ROOT_DIR) + f".cache/huggingface")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        os.environ["HF_HOME"] = str(cache_dir)
+    os.environ["TRANSFORMERS_CACHE"] = str(cache_dir / "transformers")
+    os.environ["HF_DATASETS_CACHE"] = str(cache_dir / "datasets")
+    os.environ["TMPDIR"] = str(cache_dir / "tmp")
 
     print(f"Set cache environment variables to: {cache_dir}")
 
@@ -205,6 +211,14 @@ def load_granite_2b(device: str = "cuda", cache_dir: Optional[str] = None, torch
 def load_gemma_1b(device: str = "cuda", cache_dir: Optional[str] = None, torch_dtype=torch.bfloat16):
     return load_pretrained_model(
         model_name=GEMMA_1B_MODEL_NAME,
+        cache_dir=cache_dir,
+        device=device,
+        torch_dtype=torch_dtype,
+    )
+
+def load_deepseek_coder_1_3b(device: str = "cuda", cache_dir: Optional[str] = None, torch_dtype=torch.bfloat16):
+    return load_pretrained_model(
+        model_name=DEEPSEEK_CODER_1_3B_MODEL_NAME,
         cache_dir=cache_dir,
         device=device,
         torch_dtype=torch_dtype,
