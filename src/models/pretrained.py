@@ -159,7 +159,7 @@ class PretrainedModelLoader:
         }
 
 def load_pretrained_model(
-    model_name: str = "meta-llama/Llama-3.1-8b",
+    model_name: str = "meta-llama/Llama-3.1-8B",
     cache_dir: Optional[str] = None,
     device: str = "cuda",
     torch_dtype=torch.bfloat16,
