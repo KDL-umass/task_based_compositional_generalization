@@ -11,6 +11,8 @@ class FineTuner:
     def __init__(self, cfg, logger):
         self.cfg = cfg
         self.logger = logger
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.token_mgr = TokenManager(load_path=self.cfg.data_path)
 
     def load_model_and_tokenizer(self):
         if self.cfg.model_name == "llama3":
@@ -31,7 +33,7 @@ class FineTuner:
         # check if token has mapping in model tokenizer
         for token, idx in self.dictionary.token_idx.items():
             model_token_to_idx = self.tokenizer.convert_tokens_to_ids(token)
-            if model_token_to_idx is not None and token not in ["map1", "map2", "map3", "map4", "map5", "map6"] and model_token_to_idx != 3:
+            if model_token_to_idx is not None and token not in ["map1", "map2", "map3", "map4", "map5", "map6"]:
                 self.token_map[idx] = model_token_to_idx
             else:
                 additional_tokens.append(token)
@@ -42,6 +44,41 @@ class FineTuner:
             if token not in self.token_map:
                 self.token_map[idx] = self.tokenizer.convert_tokens_to_ids(token)
         print(f"token_map: {self.token_map}")
+
+    def get_latest_ckpt(self):
+        def itr(file):
+            return int((file.split("_")[-1]).split(".")[0])
+        ckpt_dir = get_directory_path(self.cfg, key='train', prefix_dir='models/ckpts')
+        # replace eval with ck
+        all_files = os.listdir(ckpt_dir)
+        all_files = [os.path.join(ckpt_dir, file) for file in all_files if file.endswith(".pt")]
+        all_ckpt_files = [(itr(file), file) for file in all_files]
+        all_ckpt_files = sorted(all_ckpt_files)
+       
+        return all_ckpt_files[-1]
+
+    def load_net(self, fname):
+        ckpt = torch.load(fname, weights_only=False, map_location=self.device)
+        self.net_cfg = ckpt["config"]
+        # load token map if it is present
+        if "token_map" in ckpt:
+            self.token_map = ckpt["token_map"]
+        else:
+            self.token_map = None
+        
+        # get model class based on the model name and pretrained flag
+        
+        self.load_model_and_tokenizer()
+        self.logger.info(f"Token manager Original Tokens: {self.token_mgr.token}")
+        self.logger.info(f"Token manager Original Token indices: {self.token_mgr.token_idx}")
+        self.token_mgr.map_tokens(self.token_map, self.tokenizer)
+        self.logger.info(f"Token map: {self.token_map}")
+        self.logger.info(f"Token manager Tokens: {self.token_mgr.token}")
+        self.logger.info(f"Token manager Token indices: {self.token_mgr.token_idx}")
+        # resize token embeddings to match the token manager
+        self.model.load_state_dict(ckpt["net"])
+        self.dictionary = TokenManager(load_path=self.cfg.data_path)
+
     
     def load_dataloaders(self):
         loaders = []
@@ -64,9 +101,16 @@ class FineTuner:
         
     def training_loop(self):
         # first load the model and tokenizer
-        self.load_model_and_tokenizer()
-        # then load the dictionary and resize the tokenizer
-        self.load_dictionary_and_resize_tokenizer()
+        if self.cfg.finetune_from_ckpt:
+            ck, latest_ckpt = self.get_latest_ckpt()
+            self.logger.info(f"Loading checkpoint from {latest_ckpt}")
+            self.load_net(latest_ckpt)
+        else:
+            self.load_model_and_tokenizer()
+            self.logger.info(f"Loading model and tokenizer from scratch")
+            # then load the dictionary and resize the tokenizer
+            self.load_dictionary_and_resize_tokenizer()
+            ck = 0
         # then load the dataloaders after the tokenizer is resized
         loaders = self.load_dataloaders()
         train_loader = loaders[0]
@@ -74,19 +118,19 @@ class FineTuner:
             sample = train_loader.dataset.data[0].cpu().numpy()
         else:
             sample = train_loader.dataset.data[0]
-        self.seq_info = self.dictionary.get_seq_info(sample)
+        self.seq_info = self.dictionary.get_seq_info(sample, self.cfg.function_type)
         # then configure the optimizers
         self.optimizer = configure_optimizers(self.model, self.cfg.optimizer)
-        self.train(train_loader, loaders)
+        self.train(train_loader, loaders, ck)
 
-    def train(self, train_loader, loaders):
+    def train(self, train_loader, loaders, iter_ckpt):
         # set the model to training mode
         self.model.train()
         # set the device and data type
         dt = torch.bfloat16 if self.cfg.bf16 else torch.float32
         device_info = (self.cfg.device, dt)
         # initialize the learning rate and iteration
-        lr, it = 0.0, 0
+        lr, it = 0.0, 0.0
         # calculate the total number of steps
         total_steps = len(train_loader) * self.cfg.epochs
         train_loss = []
@@ -124,6 +168,9 @@ class FineTuner:
                 if it % self.cfg.log.eval_interval == 0:
                     eval_info = self.evaluate(loaders[1:], device_info)
                     log_eval(it, lr, eval_info, logger=self.logger)
+
+                if it % 100000 == 0:
+                    save_model(self.cfg, self.model, self.optimizer, it, self.get_output_dir(), self.token_map)
                 
 
         # log the final evaluation metrics

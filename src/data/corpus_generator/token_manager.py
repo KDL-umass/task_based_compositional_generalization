@@ -120,6 +120,9 @@ class TokenManager:
         txt_list = []
         for i in token_indices:
             if i in self.token:
+                if self.token[i] is None:
+                    txt_list.append("<UNK>")
+                    continue
                 txt_list.append(self.token[i])
                 if not return_list:
                     txt_list.append(" ")

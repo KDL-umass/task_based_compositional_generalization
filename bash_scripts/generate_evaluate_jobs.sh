@@ -3,16 +3,18 @@
 # Parameters
 PROMPT_LENGTHS=("fixed")
 PROMPT_MODES=("step_by_step" "direct")
-POS_EMBEDDING_TYPES=("rel_global" "abs")
+POS_EMBEDDING_TYPES=("abs" "rel_global")
 
-TRAIN_SPLIT_STRATEGIES=("reversepaircoverage_6_0")
-FUNCTION_TYPES=("uniform")
+# TRAIN_SPLIT_STRATEGIES=("reversecoverage_6_0_0" "reversecoverage_6_0_1" "reversecoverage_6_0_2" "reversecoverage_6_0_3" "reversecoverage_6_0_4" "reversecoverage_6_0_5" "reversecoverage_6_1_0" "reversecoverage_6_1_1" "reversecoverage_6_1_2" "reversecoverage_6_1_3" "reversecoverage_6_1_4" "reversecoverage_6_1_5" "reversecoverage_6_2_0" "reversecoverage_6_2_1" "reversecoverage_6_2_2" "reversecoverage_6_2_3" "reversecoverage_6_2_4" "reversecoverage_6_2_5" "reversecoverage_6_3_0" "reversecoverage_6_3_1" "reversecoverage_6_3_2" "reversecoverage_6_3_3" "reversecoverage_6_3_4" "reversecoverage_6_3_5" "reversecoverage_6_4_0" "reversecoverage_6_4_1" "reversecoverage_6_4_2" "reversecoverage_6_4_3" "reversecoverage_6_4_4" "reversecoverage_6_4_5" "reversecoverage_6_5_0" "reversecoverage_6_5_1" "reversecoverage_6_5_2" "reversecoverage_6_5_3" "reversecoverage_6_5_4" "reversecoverage_6_5_5")
+TRAIN_SPLIT_STRATEGIES=("continuouspaircoverage_6_0.0" "continuouspaircoverage_6_0.1" "continuouspaircoverage_6_0.2" "continuouspaircoverage_6_0.3" "continuouspaircoverage_6_0.4" "continuouspaircoverage_6_0.5" "continuouspaircoverage_6_0.6" "continuouspaircoverage_6_0.7" "continuouspaircoverage_6_0.8" "continuouspaircoverage_6_0.9" "continuouspaircoverage_6_1.0")
+# TRAIN_SPLIT_STRATEGIES=("systematiccontinuouscoverage_6_0.0" "systematiccontinuouscoverage_6_0.1" "systematiccontinuouscoverage_6_0.2" "systematiccontinuouscoverage_6_0.3" "systematiccontinuouscoverage_6_0.4" "systematiccontinuouscoverage_6_0.5" "systematiccontinuouscoverage_6_0.6" "systematiccontinuouscoverage_6_0.7" "systematiccontinuouscoverage_6_0.8" "systematiccontinuouscoverage_6_0.9" "systematiccontinuouscoverage_6_1.0" "randomcontinuouscoverage_6_0.0" "randomcontinuouscoverage_6_0.1" "randomcontinuouscoverage_6_0.2" "randomcontinuouscoverage_6_0.3" "randomcontinuouscoverage_6_0.4" "randomcontinuouscoverage_6_0.5" "randomcontinuouscoverage_6_0.6" "randomcontinuouscoverage_6_0.7" "randomcontinuouscoverage_6_0.8" "randomcontinuouscoverage_6_0.9" "randomcontinuouscoverage_6_1.0")
+FUNCTION_TYPES=("diverse")
 N_ALPHABETS=26
 SEQ_LEN=6
 N_FUNCTIONS=6
 NHEADS_NLAYERS="nh6_nl3"
 SEEDS=(0 10 20 30 40)
-split_strategy_prefix="reversepaircoverage_6_0_uniform_fixed"
+split_strategy_prefix="continuouspaircoverage_6_diverse_all"
 
 mkdir -p evaluation_jobs/${split_strategy_prefix}/
 mkdir -p a_logs/evaluation/${split_strategy_prefix}/

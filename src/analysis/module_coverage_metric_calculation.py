@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import pickle
 import json
 
-RESULTS_PATH = "/project/pi_jensen_umass_edu/ppruthi_umass_edu/module_identification/models/eval/"
+RESULTS_PATH = "/scratch4/workspace/ppruthi_umass_edu-CG/task_based_compositional_generalization/models/eval/"
 
 class ModuleCoverageMetricCalculator:
     """
@@ -184,12 +184,11 @@ class ModuleCoverageMetricCalculator:
     def get_test_accuracy(self, function_type: str, split_strategy: str, prompt_mode: str, pos_embedding_type: str) -> str:
         test_accuracies = []
         for seed in [0, 10, 20, 30, 40]:
-            acc_path = f"{RESULTS_PATH}{function_type}/nalph_26_seqlen_6_fnlen_6_taskmaxlen_6/{prompt_mode}/fixed/model_{split_strategy}/eval_{split_strategy}/{pos_embedding_type}/nh6_nl3/seed_{seed}/accs.pkl"
+            acc_path = f"{RESULTS_PATH}{function_type}/fixed/nalph_26_seqlen_6_fnlen_6_taskmaxlen_6/{prompt_mode}/train_{split_strategy}/eval_{split_strategy}/{pos_embedding_type}/nh6_nl3/seed_{seed}/accs.pkl"
             with open(acc_path, 'rb') as f:
-                acc_dict = pickle.load(f)
-                acc_dict = acc_dict[0]
-            ck, metrics = acc_dict
-            test_accuracies.append(metrics['test']['total']['acc'])
+                metrics = pickle.load(f)
+                
+            test_accuracies.append(metrics['test'].sharp_accuracy)
         return np.mean(test_accuracies), np.std(test_accuracies)
 
 # Example usage
@@ -210,7 +209,7 @@ if __name__ == "__main__":
     cfg.function_type = args.function_type
 
     # Split strategy values to try (permutation_6_{X})
-    split_sizes = ["0_0", "0_1", "0_2", "0_3", "0_4", "0_5"]
+    split_sizes = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
     
     for epsilon in [1e-10]:
         results = {}
@@ -220,9 +219,9 @@ if __name__ == "__main__":
                     pos_embedding_type: []
                     for pos_embedding_type in ['abs', 'rel_global']
                 }
-                for function_type in ['uniform', 'diverse']
+                for function_type in ['uniform']
             }
-            for prompt_mode in ['direct', 'step_by_step']
+            for prompt_mode in ['step_by_step']
         }
 
         random_metrics = {
@@ -231,16 +230,16 @@ if __name__ == "__main__":
                     pos_embedding_type: []
                     for pos_embedding_type in ['abs', 'rel_global']
                 }
-                for function_type in ['uniform', 'diverse']
+                for function_type in ['uniform']
             }
-            for prompt_mode in ['direct', 'step_by_step']
+            for prompt_mode in ['step_by_step']
         }
-        for prompt_mode in ['direct', 'step_by_step']:
-            for function_type in ['uniform', 'diverse']:
+        for prompt_mode in ['step_by_step']:
+            for function_type in ['uniform']:
                 results[f"{prompt_mode}_{function_type}"] = {}
                 for pos_embedding_type in ['abs', 'rel_global']:
                     results[f"{prompt_mode}_{function_type}"][pos_embedding_type] = {}
-                    for strategy_sufix in ["coverage"]:
+                    for strategy_sufix in ["continuouscoverage"]:
                         
                         results[f"{prompt_mode}_{function_type}"][pos_embedding_type][strategy_sufix] = []
 
@@ -251,6 +250,14 @@ if __name__ == "__main__":
                                 split_strategy = f"permutation_6_{s}"
                             elif strategy_sufix == "coverage":
                                 split_strategy = f"coverage_6_{s}"
+                            elif strategy_sufix == "reversecoverage":
+                                split_strategy = f"reversecoverage_6_{s}"
+                            elif strategy_sufix == "paircoverage":
+                                split_strategy = f"paircoverage_6_{s}"
+                            elif strategy_sufix == "reversepaircoverage":
+                                split_strategy = f"reversepaircoverage_6_{s}"
+                            elif strategy_sufix == "continuouscoverage":
+                                split_strategy = f"continuouscoverage_6_{s}"
                             cfg.split_strategy = split_strategy
                             compositions_generator = CompositionsGenerator(cfg)
                             train_functions, test_functions, functions_info = compositions_generator.get_train_test_compositions()
@@ -274,7 +281,7 @@ if __name__ == "__main__":
                             std_test_accuracy = 0
                             print(f"Strategy: {split_strategy}, Prompt mode: {prompt_mode}, Function type: {function_type}, Pos embedding type: {pos_embedding_type}, Divergence: {divergence}, Mean test accuracy: {mean_test_accuracy}, Std test accuracy: {std_test_accuracy}")
                             results[f"{prompt_mode}_{function_type}"][pos_embedding_type][strategy_sufix].append((divergence, mean_test_accuracy, std_test_accuracy))
-        with open(f'coverage_metrics_{epsilon}.pkl', 'wb') as f:
+        with open(f'reverse_pair_coverage_metrics_{epsilon}.pkl', 'wb') as f:
             pickle.dump(results, f)
         # save as pkl
         # with open(f'systematic_metrics_{epsilon}.pkl', 'wb') as f:

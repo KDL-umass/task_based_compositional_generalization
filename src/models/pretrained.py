@@ -19,7 +19,7 @@ from transformers import (
 )
 
 
-LLAMA3_MODEL_NAME = "meta-llama/Llama-3.1-8b"
+LLAMA3_MODEL_NAME = "meta-llama/Llama-3.1-8B"
 GPT_OSS_MODEL_NAME = "openai/gpt-oss-20b"
 GRANITE_MODEL_NAME = "ibm-granite/granite-3.1-2b-base"
 GEMMA_1B_MODEL_NAME = "google/gemma-3-1b-it"
@@ -214,5 +214,5 @@ if __name__ == "__main__":
     # Example usage
     print("Testing model loader...")
     print("=" * 50)
-    model, tokenizer, config = load_llama3_8b()
+    model, tokenizer, config = load_granite_2b()
     # model, tokenizer, config = load_gpt_oss_20b()

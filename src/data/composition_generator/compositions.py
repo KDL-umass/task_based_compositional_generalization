@@ -4,7 +4,7 @@ from src.data.modules.diverse import DIVERSE_FUNCTIONS, DIVERSE_2_FUNCTIONS, Div
 from src.data.modules.randomFunctions import MapRandom
 from src.data.composition_generator.split_strategies import get_split_strategy
 from src.data.composition_generator.function_combination_generator import FunctionCombinationGenerator
-
+import numpy as np
 # This class is the base class for all compositions classes and it initializes the function dictionary based on the configuration.
 # and applies the function composition based on the configuration.
 class BaseCompositionsClass:
@@ -145,20 +145,20 @@ class CompositionsGenerator(BaseCompositionsClass):
 def main():
     cfg_path = "{}/config/gen/conf.yaml".format(ROOT_DIR)
     # read the config file
-    cfg = read_config(cfg_path)
-    cfg.prompt_length = "fixed"
-    cfg.split_strategy = "coverage_6_0_0"
-    cfg.function_type = "uniform"
-    cfg.task_max_length = 6
-    # create the functions
-    create_functions = CompositionsGenerator(cfg)
-    train_functions, test_functions, functions_info = create_functions.get_train_test_compositions()
-    print("train_functions", len(train_functions))
-    print("test_functions", len(test_functions))
-    print("train_functions", train_functions[:5])
-    print("test_functions", test_functions[:5])
-
-
-
+    bias_strengths = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+    bias_strengths = [round(bias_strength, 2) for bias_strength in bias_strengths]
+    
+    print(f"Bias strengths: {bias_strengths}")
+    for bias_strength in bias_strengths:
+        print(f"Bias strength: {bias_strength}")
+        cfg = read_config(cfg_path)
+        cfg.prompt_length = "fixed"
+        cfg.split_strategy = f"continuouscoverage_6_{bias_strength}"
+        cfg.function_type = "uniform"
+        cfg.task_max_length = 6
+        # create the functions
+        create_functions = CompositionsGenerator(cfg)
+        train_functions, test_functions, functions_info = create_functions.get_train_test_compositions()
+    
 if __name__ == "__main__":
     main()

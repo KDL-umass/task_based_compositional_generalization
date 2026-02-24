@@ -1,14 +1,14 @@
 #!/bin/bash
-#SBATCH --time=48:00:00
+#SBATCH --time=2:00:00
 #SBATCH -c 8
 #SBATCH --mem=100GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 1 # Number of GPUs
 #SBATCH --constraint vram40
 #SBATCH --nodes=1
-#SBATCH --job-name=evaluate_model_gemma1
-#SBATCH --output=./a_logs/evaluate_model_gemma1.out
-#SBATCH --error=./a_logs/evaluate_model_gemma1.err
+#SBATCH --job-name=evaluate_model_gemma1_disjoint7_6_0_diverse
+#SBATCH --output=./a_logs/evaluate_model_gemma1_disjoint7_6_0_diverse.out
+#SBATCH --error=./a_logs/evaluate_model_gemma1_disjoint7_6_0_diverse.err
 
 module load conda/latest
 cd /scratch4/workspace/ppruthi_umass_edu-CG/task_based_compositional_generalization
@@ -22,14 +22,15 @@ NHEADS_NLAYERS="nh6_nl3"
 # set task max length to 7 for identity-based train/test split
 # set task max length to k in split strategy for without identity based train/test split
 python -m scripts.evaluate_model \
-    --prompt_mode "step_by_step" \
-    --train_split "coverage_6_5_0" \
-    --eval_split "coverage_6_5_0" \
+    --prompt_mode "direct" \
+    --train_split "disjoint7_6_0" \
+    --eval_split "disjoint7_6_0" \
     --nheads_nlayers "$NHEADS_NLAYERS" \
     --pos_embedding_type "rel_global" \
-    --function_type "uniform" \
+    --function_type "diverse" \
     --task_max_length 6 \
-    --seed 0 
+    --seed 0 \
+    --pretrained True
     
 
 # # Command for representation analysis and equivalence class analysis to generate TSNE plots

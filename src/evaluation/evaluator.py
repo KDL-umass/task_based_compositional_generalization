@@ -76,6 +76,8 @@ class Evaluator:
             self.logger.info(f"Token map: {self.token_map}")
             self.logger.info(f"Token manager Tokens: {self.token_mgr.token}")
             self.logger.info(f"Token manager Token indices: {self.token_mgr.token_idx}")
+            # resize token embeddings to match the token manager
+            
         else:
             self.model = nanoGPT(self.net_cfg.net)
 
@@ -262,7 +264,7 @@ class Evaluator:
             f"Eval {split}: Acc={metrics.sharp_accuracy:.4f} "
             f"OOD={metrics.ood_rate:.4f} MeanAcc={metrics.mean_accuracy:.4f}"
         )
-        self._log_predictions(split, inputs, outputs)
+        self._log_predictions(split, targets, outputs)
         
         return metrics, combination_ids_map
     

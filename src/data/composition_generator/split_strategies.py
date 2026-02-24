@@ -19,6 +19,13 @@ import os
 import pickle
 from init import ROOT_DIR
 TRAIN_TEST_RATIO = 0.8
+import numpy as np
+from typing import List, Tuple
+
+import numpy as np
+from typing import List, Tuple
+from itertools import combinations
+
 
 class BaseSplitStrategy(ABC):
     """Base class for all split strategies."""
@@ -572,7 +579,7 @@ class CustomSplitStrategy(BaseSplitStrategy):
 
         return train_functions, test_functions
 
-class PairCoverageSplitStrategy(BaseSplitStrategy):
+class ReversePairCoverageSplitStrategy(BaseSplitStrategy):
     def __init__(self, cfg, function_names: List[str]):
         self.function_names = function_names
         self.cfg = cfg
@@ -634,13 +641,16 @@ class PairCoverageSplitStrategy(BaseSplitStrategy):
                     break
         test_functions = [fn for fn in num_i_functions if fn not in  train_functions]
         # Add last 20 train functions to test functions
-        train_functions = train_functions[:-20]
-        test_functions = test_functions + train_functions[-20:]
+        
+        print(f"Train functions: {len(train_functions)}")
+        print(f"Test functions: {len(test_functions)}")
+        # subsample train functions to same size as test functions
+        test_functions = random.sample(test_functions, len(train_functions))
         print(f"Train functions: {len(train_functions)}")
         print(f"Test functions: {len(test_functions)}")
         return train_functions, test_functions
 
-class ReversePairCoverageSplitStrategy(BaseSplitStrategy):
+class PairCoverageSplitStrategy(BaseSplitStrategy):
     def __init__(self, cfg, function_names: List[str]):
         self.function_names = function_names
         self.cfg = cfg
@@ -703,6 +713,8 @@ class ReversePairCoverageSplitStrategy(BaseSplitStrategy):
         train_functions = [fn for fn in num_i_functions if fn not in  test_functions]
         print(f"Train functions: {len(train_functions)}")
         print(f"Test functions: {len(test_functions)}")
+        # subsample train functions to same size as test functions
+        train_functions = random.sample(train_functions, len(test_functions))
         return train_functions, test_functions
 
 
@@ -727,7 +739,521 @@ class PositionCoverageSplitStrategy(BaseSplitStrategy):
         # get all functions where module is present at given position
         test_functions = [fn for fn in num_i_functions if module == fn[position_number]]
         train_functions = [fn for fn in num_i_functions if fn not in test_functions]
+        # subsample train functions to same size as test functions
+        train_functions = random.sample(train_functions, len(test_functions))
         return train_functions, test_functions
+
+
+class ContinuousPositionCoverageSplitStrategy:
+    def __init__(self, cfg, function_names: List[str]):
+        """
+        Args:
+            cfg: Configuration object
+            function_names: List of module/function names
+            bias_strength: Float in [0, 1] controlling KL divergence
+                          0 = uniform (KL=0), 1 = maximum shift
+        """
+        self.function_names = function_names
+        self.cfg = cfg
+        bias_strength = float(self.cfg.split_strategy.split("_")[2])
+        self.bias_strength = np.clip(bias_strength, 0.0, 1.0)
+        self.epsilon = 1e-10
+        
+    def generate_pos_wise_distribution(self):
+        """Generate position-wise distributions for train and test sets."""
+        # Start with uniform distributions
+        train_pos_wise_distribution = np.ones((self.total_positions, self.total_modules)) / self.total_modules
+        test_pos_wise_distribution = np.ones((self.total_positions, self.total_modules)) / self.total_modules
+        
+        # Apply bias to create distribution shift
+        train_pos_wise_distribution, test_pos_wise_distribution = self.bias_test_distribution(
+            test_pos_wise_distribution, train_pos_wise_distribution
+        )
+        
+        return train_pos_wise_distribution, test_pos_wise_distribution
+    
+    def bias_test_distribution(self, test_pos_wise_distribution: np.ndarray, 
+                              train_pos_wise_distribution: np.ndarray):
+        """
+        Create biased distributions based on bias_strength.
+        
+        Strategy:
+        - For each position, assign modules to be "preferred" in train vs test
+        - bias_strength controls the concentration of probability mass
+        - At bias_strength=0: both distributions are uniform (KL=0)
+        - At bias_strength=1: distributions are maximally different
+        """
+        if self.bias_strength == 0:
+            return test_pos_wise_distribution, train_pos_wise_distribution
+        
+        # Create complementary biases for train and test
+        for pos in range(self.total_positions):
+            # Determine which modules are "preferred" at this position for train/test
+            # Use a deterministic but varied assignment based on position
+            offset = pos % self.total_modules
+            
+            # Create bias weights that evolve with bias_strength
+            train_weights = np.ones(self.total_modules)
+            test_weights = np.ones(self.total_modules)
+            
+            # Split modules into two groups for this position
+            n_preferred = max(1, self.total_modules // 2)
+            
+            for i in range(self.total_modules):
+                # Cyclically assign modules to train/test preference
+                module_idx = (i + offset) % self.total_modules
+                
+                if i < n_preferred:
+                    # Preferred in train, suppressed in test
+                    train_weights[module_idx] = 1 + self.bias_strength * 10
+                    test_weights[module_idx] = 1 - self.bias_strength * 0.95
+                else:
+                    # Suppressed in train, preferred in test
+                    train_weights[module_idx] = 1 - self.bias_strength * 0.95
+                    test_weights[module_idx] = 1 + self.bias_strength * 10
+            
+            # Ensure non-negative and normalize
+            train_weights = np.maximum(train_weights, self.epsilon)
+            test_weights = np.maximum(test_weights, self.epsilon)
+            
+            train_pos_wise_distribution[pos] = train_weights / np.sum(train_weights)
+            test_pos_wise_distribution[pos] = test_weights / np.sum(test_weights)
+            
+        
+        
+        return test_pos_wise_distribution, train_pos_wise_distribution
+    
+    def split(self, all_functions: List[List[str]], cfg) -> Tuple[List[List[str]], List[List[str]]]:
+        """Split functions into train and test sets based on position-wise distribution."""
+        K = int(self.cfg.split_strategy.split("_")[1])
+        
+        # Filter functions to length K (excluding identity)
+        num_i_functions = [
+            fn_list
+            for fn_list in all_functions
+            if len(fn_list) - fn_list.count("identity") == K
+        ]
+        
+        self.total_positions = K
+        self.total_modules = len(self.function_names) - 1 # -1 for identity
+        
+        # Generate position-wise distributions
+        train_pos_wise_distribution, test_pos_wise_distribution = self.generate_pos_wise_distribution()
+        print(f"Theoretical Train distribution: {train_pos_wise_distribution}")
+        print(f"Theoretical Test distribution: {test_pos_wise_distribution}")
+        # measure kl div
+        kl_sum = 0
+        for i in range(self.total_positions):
+            # print("Position i:", i)
+            # print(self.kl_divergence(test_pos_wise_distribution[i, :], train_pos_wise_distribution[i, :]))
+            kl_sum += self.kl_divergence(test_pos_wise_distribution[i, :], train_pos_wise_distribution[i, :])
+        
+        print(f"Theoretical KL mean: {kl_sum / self.total_positions}")
+        # Sample functions according to distributions
+        n_train = len(num_i_functions) // 2
+        train_functions, test_functions = self.sample_functions_from_pos_wise_distribution(
+            train_pos_wise_distribution, test_pos_wise_distribution, 
+            num_i_functions, n_train
+        )
+        actual_kl_divergence = self.calculate_actual_kl_divergence(train_functions, test_functions)
+        print(f"Empirical KL divergence: {actual_kl_divergence}")
+        return train_functions, test_functions
+    
+    def sample_functions_from_pos_wise_distribution(self, 
+                                                    train_pos_wise_distribution: np.ndarray,
+                                                    test_pos_wise_distribution: np.ndarray,
+                                                    all_available_functions: List[List[str]],
+                                                    n_train: int):
+        """
+        Sample function sequences from position-wise distributions.
+        Samples position-by-position according to the distributions.
+        
+        Args:
+            train_pos_wise_distribution: K x n_modules probability matrix
+            test_pos_wise_distribution: K x n_modules probability matrix
+            all_available_functions: All valid function sequences
+            n_train: Number of training samples to generate
+        """
+        # Create mapping from function names to indices
+        # set seed to be 10
+        np.random.seed(10)
+        fn_to_idx = {fn: i for i, fn in enumerate(self.function_names)}
+        
+        # Generate training sequences
+        train_functions = []
+        n_attempts = 0
+        max_attempts = n_train * 100
+        
+        while len(train_functions) < n_train and n_attempts < max_attempts:
+            sequence = []
+            for pos in range(self.total_positions):
+                # Sample module at this position according to distribution
+                module_idx = np.random.choice(
+                    self.total_modules, 
+                    p=train_pos_wise_distribution[pos]
+                )
+                sequence.append(self.function_names[module_idx])
+            
+            # Only add if it's a valid permutation (no repeats) and available
+            if len(set(sequence)) == self.total_positions and sequence in all_available_functions:
+                train_functions.append(sequence)
+            
+            n_attempts += 1
+        
+        # Generate test sequences from remaining functions
+        remaining_functions = [f for f in all_available_functions if f not in train_functions]
+        
+        test_functions = []
+        n_attempts = 0
+        n_test = len(remaining_functions) if len(remaining_functions) < n_train else n_train
+        
+        while len(test_functions) < n_test and n_attempts < max_attempts:
+            sequence = []
+            for pos in range(self.total_positions):
+                module_idx = np.random.choice(
+                    self.total_modules,
+                    p=test_pos_wise_distribution[pos]
+                )
+                sequence.append(self.function_names[module_idx])
+            
+            # Valid permutation, not in train, and available
+            if (len(set(sequence)) == self.total_positions and 
+                sequence not in train_functions and 
+                sequence in remaining_functions):
+                test_functions.append(sequence)
+            
+            n_attempts += 1
+        
+        # # If we didn't get enough samples, fill from remaining functions
+        # if len(test_functions) < n_test:
+        #     available = [f for f in remaining_functions if f not in test_functions]
+        #     np.random.shuffle(available)
+        #     test_functions.extend(available[:n_test - len(test_functions)])
+
+        
+        non_duplicate_train_functions = list(set(tuple(fn) for fn in train_functions))
+        non_duplicate_test_functions = list(set(tuple(fn) for fn in test_functions))
+        
+        # if len(non_duplicate_train_functions) > 50:
+        #     # randomly sample 100 functions from train functions
+        #     non_duplicate_train_functions = random.sample(non_duplicate_train_functions, 50)
+        # if len(non_duplicate_test_functions) > 50:
+        #     # randomly sample 100 functions from test functions
+        #     non_duplicate_test_functions = random.sample(non_duplicate_test_functions, 50)
+            
+        # remove tuple format and have same format as train and test functions
+        # train_functions = [list(fn) for fn in non_duplicate_train_functions]
+        # test_functions = [list(fn) for fn in non_duplicate_test_functions]
+        # print(len(train_functions), len(test_functions))
+        # print(len(non_duplicate_train_functions), len(non_duplicate_test_functions))
+        
+        n_unique_train_functions = len(non_duplicate_train_functions)
+        n_unique_test_functions = len(non_duplicate_test_functions)
+        print(f"Number of unique train functions: {n_unique_train_functions}")
+        print(f"Number of unique test functions: {n_unique_test_functions}")
+        if self.cfg.split_strategy.startswith("randomcontinuouscoverage"):
+            train_functions = random.sample(all_available_functions, n_unique_train_functions)
+            remaining_functions = [f for f in all_available_functions if f not in train_functions]
+            test_functions = random.sample(remaining_functions, n_unique_test_functions)
+            # duplicate uniformly train and test to make size total size as 360
+            train_functions = train_functions * (360 // n_unique_train_functions)
+            test_functions = test_functions * (360 // n_unique_test_functions)
+        print(f"Number of total train functions: {len(train_functions)}")
+        print(f"Number of total test functions: {len(test_functions)}")
+        return train_functions, test_functions
+    
+    def calculate_actual_kl_divergence(self, train_functions: List[List[str]], 
+                                       test_functions: List[List[str]]) -> float:
+        """
+        Calculate the actual position-wise KL divergence between sampled train/test sets.
+        """
+        fn_to_idx = {fn: i for i, fn in enumerate(self.function_names)}
+        
+        # Calculate empirical distributions
+        train_dist = np.zeros((self.total_positions, self.total_modules))
+        test_dist = np.zeros((self.total_positions, self.total_modules))
+
+        
+        for seq in train_functions:
+            for pos, fn in enumerate(seq):
+                if fn != "identity":
+                    train_dist[pos, fn_to_idx[fn]] += 1
+        
+        for seq in test_functions:
+            for pos, fn in enumerate(seq):
+                if fn != "identity":
+                    test_dist[pos, fn_to_idx[fn]] += 1
+        
+        # Normalize
+        train_dist = train_dist / (train_dist.sum(axis=1, keepdims=True) + self.epsilon)
+        test_dist = test_dist / (test_dist.sum(axis=1, keepdims=True) + self.epsilon)
+        print(f"Train distribution: {train_dist}")
+        print(f"Test distribution: {test_dist}")
+        # Calculate KL divergence
+        kl_sum = 0
+        for i in range(self.total_positions):
+            
+            kl_sum += self.kl_divergence(test_dist[i, :], train_dist[i, :])
+        
+        return kl_sum / self.total_positions
+    
+    def kl_divergence(self, p: np.ndarray, q: np.ndarray) -> float:
+        """Calculate KL divergence D_KL(P || Q)."""
+        p = p + self.epsilon
+        q = q + self.epsilon
+        p = p / np.sum(p)
+        q = q / np.sum(q)
+        return np.sum(p * np.log(p / q))
+
+
+class ContinuousPairwiseCoverageSplitStrategy:
+    def __init__(self, cfg, function_names: List[str]):
+        """
+        Args:
+            cfg: Configuration object
+            function_names: List of module/function names
+            bias_strength: Float in [0, 1] controlling KL divergence
+                          0 = uniform (KL=0), 1 = maximum shift
+        """
+        self.function_names = function_names
+        self.cfg = cfg
+        bias_strength = float(self.cfg.split_strategy.split("_")[2])
+        self.bias_strength = np.clip(bias_strength, 0.0, 1.0)
+        self.epsilon = 1e-10
+        
+    def generate_pairwise_distribution(self):
+        """Generate position-wise distributions for train and test sets."""
+        # Start with uniform distributions
+        train_pairwise_distribution = np.ones((self.total_modules, self.total_modules)) 
+        test_pairwise_distribution = np.ones((self.total_modules, self.total_modules))
+
+        #set diagonal to be 0
+        np.fill_diagonal(train_pairwise_distribution, 0)
+        np.fill_diagonal(test_pairwise_distribution, 0)
+
+        # normalize
+        train_pairwise_distribution = train_pairwise_distribution / np.sum(train_pairwise_distribution, axis=1, keepdims=True)
+        test_pairwise_distribution = test_pairwise_distribution / np.sum(test_pairwise_distribution, axis=1, keepdims=True)
+        
+        # Apply bias to create distribution shift
+        train_pairwise_distribution, test_pairwise_distribution = self.bias_test_distribution(
+            test_pairwise_distribution, train_pairwise_distribution
+        )
+        
+        return train_pairwise_distribution, test_pairwise_distribution
+    
+    def bias_test_distribution(self, test_pairwise_distribution: np.ndarray, 
+                              train_pairwise_distribution: np.ndarray):
+        """
+        Create biased distributions based on bias_strength.
+        
+        Strategy:
+        - For each position, assign modules to be "preferred" in train vs test
+        - bias_strength controls the concentration of probability mass
+        - At bias_strength=0: both distributions are uniform (KL=0)
+        - At bias_strength=1: distributions are maximally different
+        """
+        if self.bias_strength == 0:
+            return test_pairwise_distribution, train_pairwise_distribution
+        
+        # Create complementary biases for train and test
+        for mod_index_1 in range(self.total_modules):
+            # Determine which modules are "preferred" at this position for train/test
+            # Use a deterministic but varied assignment based on position
+            offset = mod_index_1 % self.total_modules
+            
+            # Create bias weights that evolve with bias_strength
+            train_weights = np.ones(self.total_modules)
+            test_weights = np.ones(self.total_modules)
+            
+            # Split modules into two groups for this position
+            n_preferred = max(1, self.total_modules // 2)
+            
+            for i in range(self.total_modules):
+                # Cyclically assign modules to train/test preference
+                module_idx = (i + offset) % self.total_modules
+                
+                if i < n_preferred:
+                    # Preferred in train, suppressed in test
+                    train_weights[module_idx] = 1 + self.bias_strength * 10
+                    test_weights[module_idx] = 1 - self.bias_strength * 0.95
+                else:
+                    # Suppressed in train, preferred in test
+                    train_weights[module_idx] = 1 - self.bias_strength * 0.95
+                    test_weights[module_idx] = 1 + self.bias_strength * 10
+            
+            # Ensure non-negative and normalize
+            train_weights = np.maximum(train_weights, self.epsilon)
+            test_weights = np.maximum(test_weights, self.epsilon)
+
+            # diagonal to be 0
+            train_weights[mod_index_1] = 0
+            test_weights[mod_index_1] = 0
+            
+            train_pairwise_distribution[mod_index_1, :] = train_weights / np.sum(train_weights)
+            test_pairwise_distribution[mod_index_1, :] = test_weights / np.sum(test_weights)
+    
+        return train_pairwise_distribution, test_pairwise_distribution
+    
+    def split(self, all_functions: List[List[str]], cfg) -> Tuple[List[List[str]], List[List[str]]]:
+        """Split functions into train and test sets based on position-wise distribution."""
+        K = int(self.cfg.split_strategy.split("_")[1])
+        
+        # Filter functions to length K (excluding identity)
+        num_i_functions = [
+            fn_list
+            for fn_list in all_functions
+            if len(fn_list) - fn_list.count("identity") == K
+        ]
+        
+        self.total_modules = len(self.function_names) - 1 # -1 for identity
+        
+        # Generate position-wise distributions
+        train_pairwise_distribution, test_pairwise_distribution = self.generate_pairwise_distribution()
+        print(f"Theoretical Train pairwise distribution: {train_pairwise_distribution}")
+        print(f"Theoretical Test pairwise distribution: {test_pairwise_distribution}")
+
+        n_train = len(num_i_functions) // 2
+        train_functions, test_functions = self.sample_functions_from_pairwise_distribution(
+            train_pairwise_distribution, test_pairwise_distribution, 
+            num_i_functions, n_train
+        )
+        actual_kl_divergence = self.calculate_actual_kl_divergence(train_functions, test_functions)
+        print(f"Empirical KL divergence: {actual_kl_divergence}")
+        return train_functions, test_functions
+    
+    def sample_functions_from_pairwise_distribution(self, 
+                                                    train_pairwise_distribution: np.ndarray,
+                                                    test_pairwise_distribution: np.ndarray,
+                                                    all_available_functions: List[List[str]],
+                                                    n_train: int):
+        """
+        Sample function sequences from position-wise distributions.
+        Samples position-by-position according to the distributions.
+        
+        Args:
+            train_pos_wise_distribution: K x n_modules probability matrix
+            test_pos_wise_distribution: K x n_modules probability matrix
+            all_available_functions: All valid function sequences
+            n_train: Number of training samples to generate
+        """
+        # Create mapping from function names to indices
+        # set seed to be 10
+        np.random.seed(10)
+        fn_to_idx = {fn: i for i, fn in enumerate(self.function_names)}
+        
+        # Generate training sequences
+        train_functions = []
+        n_attempts = 0
+        max_attempts = n_train * 100
+        
+        while len(train_functions) < n_train and n_attempts < max_attempts:
+            sequence = []
+            first_module_idx = np.random.choice(
+                self.total_modules,
+                size=1
+            )[0]
+            sequence.append(self.function_names[first_module_idx])
+            for _ in range(self.total_modules - 1):
+                # Sample module at this position according to distribution
+                next_module_idx = np.random.choice(
+                    self.total_modules, 
+                    p=train_pairwise_distribution[first_module_idx, :]
+                )
+                sequence.append(self.function_names[next_module_idx])
+                first_module_idx = next_module_idx
+            
+            # Only add if it's a valid permutation (no repeats) and available
+            if len(set(sequence)) == self.total_modules and sequence in all_available_functions:
+                train_functions.append(sequence)
+            
+            n_attempts += 1
+        
+        # Generate test sequences from remaining functions
+        remaining_functions = [f for f in all_available_functions if f not in train_functions]
+        
+        test_functions = []
+        n_attempts = 0
+        n_test = len(remaining_functions) if len(remaining_functions) < n_train else n_train
+        
+        while len(test_functions) < n_test and n_attempts < max_attempts:
+            sequence = []
+            first_module_idx = np.random.choice(
+                self.total_modules,
+                size=1
+            )[0]
+            sequence.append(self.function_names[first_module_idx])
+            for _ in range(self.total_modules - 1):
+                module_idx = np.random.choice(
+                    self.total_modules,
+                    p=test_pairwise_distribution[first_module_idx, :]
+                )
+                sequence.append(self.function_names[module_idx])
+                first_module_idx = module_idx
+            
+            # Valid permutation, not in train, and available
+            if (len(set(sequence)) == self.total_modules and 
+                sequence not in train_functions and 
+                sequence in remaining_functions):
+                test_functions.append(sequence)
+            
+            n_attempts += 1
+        
+        
+        
+        print(len(train_functions), len(test_functions))
+        # print len unique functions in train and test
+        non_duplicate_train_functions = list(set(tuple(fn) for fn in train_functions))
+        non_duplicate_test_functions = list(set(tuple(fn) for fn in test_functions))
+        print(len(non_duplicate_train_functions), len(non_duplicate_test_functions))
+        return train_functions, test_functions
+    
+    def calculate_actual_kl_divergence(self, train_functions: List[List[str]], 
+                                       test_functions: List[List[str]]) -> float:
+        """
+        Calculate the actual position-wise KL divergence between sampled train/test sets.
+        """
+        fn_to_idx = {fn: i for i, fn in enumerate(self.function_names)}
+        
+        # Calculate empirical distributions
+        train_dist = np.zeros((self.total_modules, self.total_modules))
+        test_dist = np.zeros((self.total_modules, self.total_modules))
+
+        
+        for seq in train_functions:
+            # check pairwise distribution
+            for i in range(len(seq) - 1):
+                train_dist[fn_to_idx[seq[i]], fn_to_idx[seq[i + 1]]] += 1
+
+        # normalize by num_adjacent_pairs
+        train_adjacent_pairs = len(train_functions)*(len(train_functions[0]) - 1)
+        train_dist = train_dist / train_adjacent_pairs
+        
+        for seq in test_functions:
+            # check pairwise distribution
+            for i in range(len(seq) - 1):
+                test_dist[fn_to_idx[seq[i]], fn_to_idx[seq[i + 1]]] += 1
+
+        # normalize by num_adjacent_pairs
+        test_adjacent_pairs = len(test_functions)*(len(test_functions[0]) - 1)
+        test_dist = test_dist / test_adjacent_pairs
+
+        print(f"Train distribution: {train_dist}")
+        print(f"Test distribution: {test_dist}")
+        
+        kl = self.kl_divergence(test_dist.flatten(), train_dist.flatten())
+        return kl
+    
+    def kl_divergence(self, p: np.ndarray, q: np.ndarray) -> float:
+        """Calculate KL divergence D_KL(P || Q)."""
+        p = p + self.epsilon
+        q = q + self.epsilon
+        print(np.sum(p), np.sum(q))
+        assert np.allclose(np.sum(p), 1) and np.allclose(np.sum(q), 1)
+        p = p / np.sum(p)
+        q = q / np.sum(q)
+        return np.sum(p * np.log(p / q))
+    
 
 class AllSplitStrategy(BaseSplitStrategy):
     def __init__(self, cfg, function_names: List[str]):
@@ -766,9 +1292,7 @@ class ReversePositionCoverageSplitStrategy(BaseSplitStrategy):
         # get all functions where module is present at given position
         train_functions = [fn for fn in num_i_functions if module == fn[position_number]]
         test_functions = [fn for fn in num_i_functions if fn not in train_functions]
-        # Add last 20 train functions to test functions
-        train_functions = train_functions[:-20]
-        test_functions = test_functions + train_functions[-20:]
+        test_functions = random.sample(test_functions, len(train_functions))
         print(f"Train functions: {len(train_functions)}")
         print(f"Test functions: {len(test_functions)}")
         return train_functions, test_functions
@@ -955,5 +1479,9 @@ def get_split_strategy(cfg, function_names: List[str]) -> BaseSplitStrategy:
         return DisJointSplitStrategy9(cfg, function_names)
     elif cfg.split_strategy.startswith("all"):
         return AllSplitStrategy(cfg, function_names)
+    elif cfg.split_strategy.startswith("continuouscoverage") or cfg.split_strategy.startswith("systematiccontinuouscoverage") or cfg.split_strategy.startswith("randomcontinuouscoverage"):
+        return ContinuousPositionCoverageSplitStrategy(cfg, function_names)
+    elif cfg.split_strategy.startswith("continuouspaircoverage"):
+        return ContinuousPairwiseCoverageSplitStrategy(cfg, function_names)
     else:   
         raise ValueError(f"Unknown split strategy: {cfg.split_strategy}")

@@ -1,3 +1,8 @@
+a_logs/
+equivalence_classes/
+evaluation_jobs/
+generated_jobs/
+icml_plots/
 data/
 logs/
 # Python cache files
@@ -9,3 +14,4 @@ models/
 .vscode 
 checkpoints/
 *.pyc
+rebuttal_analysis/jsons/
