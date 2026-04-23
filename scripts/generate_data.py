@@ -35,6 +35,19 @@ if __name__ == "__main__":
     parser.add_argument(
         "--function_type", type=str, default="uniform", help="uniform or diverse"
     )
+    parser.add_argument(
+        "--sample_efficiency_experiment",
+        type=bool,
+        default=False,
+        help="whether to run sample efficiency experiment",
+        required=True,
+    )
+    parser.add_argument(
+        "--nsamples",
+        type=int,
+        default=10,
+        help="number of samples"
+    )
     
     args = parser.parse_args()
     # Read config file
@@ -44,5 +57,7 @@ if __name__ == "__main__":
     cfg.split_strategy = args.split_strategy
     cfg.task_max_length = args.task_max_length
     cfg.function_type = args.function_type
+    cfg.nsamples = args.nsamples
+    cfg.sample_efficiency_experiment = args.sample_efficiency_experiment
     logger = setup_data_logging(cfg)
     main(cfg, logger)

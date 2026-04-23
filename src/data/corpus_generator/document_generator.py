@@ -134,6 +134,12 @@ class DocumentGenerator:
     
     def generate_document(self, split, train_functions, test_functions):
         """Generate documents for a specific split (train/test/train_heldout)."""
+        for function_list in train_functions:
+            print(function_list)
+            
+        for function_list in test_functions:
+            print(function_list)
+            
         direct_documents = []
         step_by_step_documents = []
         
@@ -160,8 +166,11 @@ class DocumentGenerator:
         """Get functions and sample count for a split."""
         if split == "train":
             functions = train_functions
-            ndocuments = self.cfg.ndocuments
-            nsamples = int(ndocuments / len(train_functions))
+            if self.cfg.sample_efficiency_experiment:
+                nsamples = self.cfg.nsamples
+            else:
+                ndocuments = self.cfg.ndocuments
+                nsamples = int(ndocuments / len(train_functions))
         elif split == "train_heldout":
             functions = train_functions
             ndocuments = self.cfg.neval_documents

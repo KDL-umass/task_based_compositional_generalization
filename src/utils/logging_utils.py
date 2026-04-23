@@ -86,6 +86,10 @@ def setup_training_logging(
         Configured logger instance
     """
     log_path = get_directory_path(cfg, key='train', prefix_dir='logs')
+    if cfg.sample_efficiency_experiment:
+        log_path = os.path.join(log_path, "sample_efficiency", "nsamples_{}".format(cfg.nsamples))
+    if not os.path.exists(log_path):
+        os.makedirs(log_path, exist_ok=True)
     return setup_logger(log_path, log_filename=log_filename)
 
 
@@ -133,3 +137,28 @@ def setup_visualization_logging(
     """
     log_path = get_directory_path(cfg, key='visualization', prefix_dir='logs')
     return setup_logger(log_path, log_filename=log_filename)
+def setup_rep_analysis_logging(
+    cfg: dict,
+    log_filename: str = "rep_analysis.log",
+) -> logging.Logger:
+    """
+    Set up logging for evaluation tasks.
+    
+    Creates a logger with the standard evaluation directory structure:
+    {log_path}/{base_name}/{tag}/{prompt_length}/model_{model_split}/eval_{eval_split}/{pos_embedding_type}/seed_{seed}/
+    
+    Args:
+        cfg: Configuration dictionary
+        log_filename: Name of the log file
+        
+    Returns:
+        Configured logger instance
+    """
+    log_path = get_directory_path(cfg, key='eval', prefix_dir='logs')
+    
+    logger = setup_logger(log_path, log_filename=log_filename)
+    logger.info("Initializing Representation Analysis...")
+    logger.info(os.path.join(log_path, log_filename))
+    
+    return logger
+

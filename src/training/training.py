@@ -82,8 +82,9 @@ class Trainer:
 
     def get_output_dir(self):
         output_dir = get_directory_path(self.cfg, key='train', prefix_dir='models/ckpts')
-        if os.path.exists(output_dir):
-            shutil.rmtree(output_dir)
+       
+        if self.cfg.sample_efficiency_experiment:
+            output_dir = os.path.join(output_dir, "sample_efficiency", "nsamples_{}".format(self.cfg.nsamples))
         os.makedirs(output_dir, exist_ok=True)
 
         return output_dir
@@ -97,13 +98,15 @@ class Trainer:
 
         
         lr, it = 0.0, 0
+        if self.cfg.sample_efficiency_experiment and len(train_loader) < 200:
+            self.cfg.epochs = int(200/len(train_loader)) * self.cfg.epochs
         total_steps = len(train_loader) * self.cfg.epochs
         train_loss = []
         save_model(self.cfg, self.model, self.optimizer, it, fdir)
         
         self.logger.info(f"Total training steps: {total_steps}")
         self.logger.info(f"Learning rate warmup steps: {self.cfg.optimizer.warmup_iters}")
-
+        save_model(self.cfg, self.model, self.optimizer, it, fdir)
         for _ in range(self.cfg.epochs):
             for dat, targets, elems in train_loader:
                 if it % self.cfg.log.eval_interval == 0:

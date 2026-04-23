@@ -184,11 +184,16 @@ class TokenManager:
         extra_space_tokens = len(sample) - end_pos - 1
         new_len = len(sample) - prompt_pos_end - extra_space_tokens
         
+        input_data_start = int(sep_positions[0]) + 1
+        input_data_end = int(last_sep_pos)
+
         return {
             "prompt_pos_end": prompt_pos_end,
             "last_sep_pos": last_sep_pos,
             "end_pos": end_pos,
             "new_len": new_len,
+            "input_data_start": input_data_start,
+            "input_data_end": input_data_end,
         }
 
     def get_input_string(self, doc, function_type):
@@ -202,11 +207,12 @@ class TokenManager:
 
 
     def get_output_string(self, doc, function_type, token_map=None):
+        
         if function_type == "diverse":
             third_sep_pos = np.where(doc == self.sep_idx)[0][2]
         else:
             third_sep_pos = np.where(doc == self.sep_idx)[0][1]
-        end_token_pos = np.where(doc == self.end_token)[0][0]
+        end_token_pos = np.where(doc == self.end_idx)[0][0]
         output_string = doc[third_sep_pos + 1 : end_token_pos]
         return output_string
 

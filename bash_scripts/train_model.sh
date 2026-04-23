@@ -45,7 +45,7 @@ for split in "${TRAIN_SPLIT_STRATEGIES[@]}"; do
                             --pos_embedding_type "$pos_embedding_type" \
                             --n_heads_nlayers "$NHEADS_NLAYERS" \
                             --function_type "$function_type" \
-                            --task_max_length "$TASK_MAX_LENGTH" 
+                            --task_max_length "$TASK_MAX_LENGTH"
                     done
                 done
             done

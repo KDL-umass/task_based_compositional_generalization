@@ -95,11 +95,17 @@ class Evaluator:
         def itr(file):
             return int((file.split("_")[-1]).split(".")[0])
         ckpt_dir = get_directory_path(self.cfg, key='train', prefix_dir='models/ckpts')
+        if self.cfg.sample_efficiency_experiment:
+            ckpt_dir = os.path.join(ckpt_dir, "sample_efficiency", "nsamples_{}".format(self.cfg.nsamples))
         # replace eval with ck
         all_files = os.listdir(ckpt_dir)
         all_files = [os.path.join(ckpt_dir, file) for file in all_files if file.endswith(".pt")]
         all_ckpt_files = [(itr(file), file) for file in all_files]
         all_ckpt_files = sorted(all_ckpt_files)
+        if self.cfg.eval_for_training:
+            return all_ckpt_files
+        else:
+            return [(all_ckpt_files[-1])]
         if self.cfg.eval_for_training:
             return all_ckpt_files
         else:
@@ -230,7 +236,7 @@ class Evaluator:
                 all_inputs.append(batch_data)
                 # Generate predictions
                 inputs = batch_data[:, :self._seq_info["prompt_pos_end"]]
-                outputs = self._predict(model, inputs, self._seq_info["new_len"])
+                outputs = self._predict(model, inputs, self._seq_info["new_len"]+1)
                 
                 # Get combination IDs
                 batch_np = batch_elems.cpu().numpy()
@@ -241,6 +247,7 @@ class Evaluator:
                 all_targets.append(full_targets)
                 all_comb_ids.append(comb_ids)
                 all_docs_function_token.append(docs_function_token)
+                
         
         # Concatenate all batches
         inputs = torch.cat(all_inputs, dim=0)
@@ -249,10 +256,13 @@ class Evaluator:
         combination_ids = np.concatenate(all_comb_ids)
         docs_function_token = np.concatenate(all_docs_function_token)
         # generate a unique combination ids map
-        combination_ids_map = {comb_id: doc_fn for doc_fn, comb_id in zip(docs_function_token, combination_ids)}
+        if len(all_comb_ids_map) > 1:
+            combination_ids_map = {comb_id: doc_fn for doc_fn, comb_id in zip(docs_function_token, combination_ids)}
         
         with open("combination_ids_map.pkl", "wb") as f:
             pickle.dump(combination_ids_map, f)
+        else:
+            combination_ids_map = all_comb_ids_map[0]
         
         # Calculate metrics
         metrics = self._calc_metrics(outputs, targets, self._seq_info, combination_ids)
@@ -261,6 +271,7 @@ class Evaluator:
             f"Eval {split}: Acc={metrics.sharp_accuracy:.4f} "
             f"OOD={metrics.ood_rate:.4f} MeanAcc={metrics.mean_accuracy:.4f}"
         )
+        self._log_predictions(split, targets, outputs)
         self._log_predictions(split, targets, outputs)
         
         return metrics, combination_ids_map
@@ -334,6 +345,10 @@ class Evaluator:
     def save_results(self, results: Dict[str, Metrics]):
         for latest_iter, results in results.items():
             output_dir = self.get_output_dir()
+            if self.cfg.sample_efficiency_experiment:
+                output_dir = os.path.join(output_dir, "sample_efficiency", "nsamples_{}".format(self.cfg.nsamples))
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir, exist_ok=True)
             output_path = os.path.join(output_dir, f"accs_{latest_iter}.pkl")
             with open(output_path, 'wb') as f:
                 pickle.dump(results, f)

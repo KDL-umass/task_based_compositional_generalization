@@ -3,6 +3,7 @@ from init import read_config, set_seed, ROOT_DIR
 from src.training.training import Trainer
 from src.utils.logging_utils import setup_training_logging
 import argparse
+import os
 def main(cfg, logger):
     set_seed(cfg.seed)
     trainer = Trainer(cfg, logger)
@@ -37,7 +38,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--seed", type=int, default=0, help="random seed for reproducibility"
     )
-
+    parser.add_argument(
+        "--sample_efficiency_experiment", type=bool, default=False, help="whether to run sample efficiency experiment"
+    )
+    parser.add_argument(
+        "--nsamples", type=int, default=10, help="number of samples"
+    )
     args = parser.parse_args()
     cfg = read_config(f"{ROOT_DIR}/config/train/conf.yaml")
     cfg.prompt_mode = args.prompt_mode
@@ -57,6 +63,8 @@ if __name__ == "__main__":
         cfg.prompt_mode,
         cfg.train_split,
     )
+    if args.sample_efficiency_experiment:
+        cfg.data_path = os.path.join(cfg.data_path, "sample_efficiency", "nsamples_{}".format(args.nsamples))
     cfg.net.pos_embedding_type = args.pos_embedding_type
     cfg.pos_embedding_type = args.pos_embedding_type
     split_nhk_nlj = args.n_heads_nlayers.split("_")
@@ -68,6 +76,8 @@ if __name__ == "__main__":
     cfg.nheads_nlayers = args.n_heads_nlayers
     cfg.function_type = args.function_type
     cfg.seed = args.seed
+    cfg.nsamples = args.nsamples
+    cfg.sample_efficiency_experiment = args.sample_efficiency_experiment
     # Initialize logger
     logger = setup_training_logging(cfg)
     main(cfg, logger)

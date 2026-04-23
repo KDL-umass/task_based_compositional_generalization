@@ -1,10 +1,10 @@
 """
-Evaluation script
+Representation Analysis script
 """
 import argparse
 from init import read_config, set_seed, ROOT_DIR
-from src.utils.logging_utils import setup_evaluation_logging
-from src.evaluation.evaluator import Evaluator
+from src.utils.logging_utils import setup_rep_analysis_logging
+from src.analysis.representation_analyzer import RepresentationAnalyzer
 from src.utils.storage_utils import get_directory_path
 import os
 def main(cfg):
@@ -12,10 +12,29 @@ def main(cfg):
     # print config in a readable format
     print(cfg)
     set_seed(cfg.seed)
-    logger = setup_evaluation_logging(cfg)
-    evaluator = Evaluator(cfg, logger)
-    metrics = evaluator.evaluate(verbose=True)
-    evaluator.save_results(metrics)
+    logger = setup_rep_analysis_logging(cfg)
+    analyzer = RepresentationAnalyzer(cfg, logger)
+    ckpts = analyzer.get_latest_ckpt()
+    latest_iter, ckpt_file = ckpts[-1]
+    analyzer.load_net(ckpt_file)
+    analyzer.logger.info(f"Loaded checkpoint: {ckpt_file} for iteration {latest_iter}")
+    analyzer.model.eval()
+    if "cuda" in analyzer.device:
+        analyzer.model = analyzer.model.cuda()
+    dataloaders = analyzer.load_dataloaders()
+    train_dataset = dataloaders["train"].dataset.data
+    test_dataset = dataloaders["test"].dataset.data
+
+    analyzer.logger.info(f"Train data: {len(train_dataset)} samples")
+    analyzer.logger.info(f"Test data: {len(test_dataset)} samples")
+
+    # Extract representations for train data
+    analyzer.logger.info("Extracting train representations...")
+    unique_train_function_lists = analyzer._get_unique_train_function_lists(train_dataset)
+    doc_inputs, doc_outputs, doc_function_lists, doc_input_data_tokens, doc_split_labels = analyzer.get_processed_docs(test_dataset, unique_train_function_lists)
+    
+    results = analyzer.analyze_representations()
+    analyzer.save_representation_results(results)
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -37,7 +56,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--nheads_nlayers",
         type=str,
-        default="nh6_nl3",
         default="nh6_nl3",
         help="number of heads and layers",
     )
@@ -68,6 +86,7 @@ if __name__ == "__main__":
     cfg.prompt_mode = args.prompt_mode
     cfg.train_split = args.train_split
     cfg.eval_split = args.eval_split
+    cfg.split_strategy = cfg.train_split
     cfg.nheads_nlayers = args.nheads_nlayers
     cfg.pos_embedding_type = args.pos_embedding_type
     cfg.num_runs = args.num_runs
@@ -76,8 +95,6 @@ if __name__ == "__main__":
     cfg.task_max_length = args.task_max_length
     cfg.data_path = get_directory_path(cfg, key='data', prefix_dir='data')
     cfg.data_path = os.path.join(cfg.data_path, cfg.prompt_mode, cfg.train_split)
-    if args.sample_efficiency_experiment:
-        cfg.data_path = os.path.join(cfg.data_path, "sample_efficiency", "nsamples_{}".format(args.nsamples))
     cfg.eval_for_training = args.eval_for_training
     cfg.sample_efficiency_experiment = args.sample_efficiency_experiment
     cfg.nsamples = args.nsamples

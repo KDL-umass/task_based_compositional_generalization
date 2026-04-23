@@ -21,6 +21,9 @@ class DataStorage:
         base_path = get_directory_path(self.cfg, key='data', prefix_dir='data')
         self.step_fdir = os.path.join(base_path, "step_by_step", self.dir_flag)
         self.direct_fdir = os.path.join(base_path, "direct", self.dir_flag)
+        if self.cfg.sample_efficiency_experiment:
+            self.step_fdir = os.path.join(self.step_fdir, "sample_efficiency", "nsamples_{}".format(self.cfg.nsamples))
+            self.direct_fdir = os.path.join(self.direct_fdir, "sample_efficiency", "nsamples_{}".format(self.cfg.nsamples))
         
     def store_data(self, corpus, token, token_idx, functions_info):
         """Store all generated data to disk."""

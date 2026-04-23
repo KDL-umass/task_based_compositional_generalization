@@ -39,5 +39,5 @@ optimizer:
   min_lr: 0.000006
 
 log: 
-  eval_interval: 100
+  eval_interval: 500
   log_interval: 50
