@@ -4,11 +4,11 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem 100GB
 #SBATCH --cpus-per-task 4
-#SBATCH --job-name=data_generation_randomcontinuouscoverage_diverse
-#SBATCH --output=./a_logs/data_generation_randomcontinuouscoverage_diverse.out
-#SBATCH --error=./a_logs/data_generation_randomcontinuouscoverage_diverse.err
+#SBATCH --job-name=data_generation
+#SBATCH --output=./a_logs/data_generation_combination_uniform.out
+#SBATCH --error=./a_logs/data_generation_combination_uniform.err
 module load conda/latest
-cd /scratch4/workspace/ppruthi_umass_edu-CG/task_based_compositional_generalization
+cd /scratch/workspace/ppruthi_umass_edu-MI/task_based_compositional_generalization
 conda activate CG
 # for module_number in {0..5}; do
 #     for pos_number in {0..5}; do
@@ -33,39 +33,36 @@ conda activate CG
 # python -m scripts.generate_data --split_strategy continuouspaircoverage_6_0.9 --task_max_length 6 --function_type diverse
 # python -m scripts.generate_data --split_strategy continuouspaircoverage_6_1.0 --task_max_length 6 --function_type diverse
 
-python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.0 --task_max_length 6 --function_type diverse
-python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.1 --task_max_length 6 --function_type diverse
-python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.2 --task_max_length 6 --function_type diverse
-python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.3 --task_max_length 6 --function_type diverse
-python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.4 --task_max_length 6 --function_type diverse
-python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.5 --task_max_length 6 --function_type diverse
-python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.6 --task_max_length 6 --function_type diverse
-python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.7 --task_max_length 6 --function_type diverse
-python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.8 --task_max_length 6 --function_type diverse
-python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.9 --task_max_length 6 --function_type diverse
-python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_1.0 --task_max_length 6 --function_type diverse
+# python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.0 --task_max_length 6 --function_type diverse
+# python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.1 --task_max_length 6 --function_type diverse
+# python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.2 --task_max_length 6 --function_type diverse
+# python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.3 --task_max_length 6 --function_type diverse
+# python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.4 --task_max_length 6 --function_type diverse
+# python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.5 --task_max_length 6 --function_type diverse
+# python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.6 --task_max_length 6 --function_type diverse
+# python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.7 --task_max_length 6 --function_type diverse
+# python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.8 --task_max_length 6 --function_type diverse
+# python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_0.9 --task_max_length 6 --function_type diverse
+# python -m scripts.generate_data --split_strategy randomcontinuouscoverage_6_1.0 --task_max_length 6 --function_type diverse
 
-# # python -m scripts.generate_data --split_strategy permutation_6_600 --task_max_length 6 --function_type uniform
+# python -m scripts.generate_data --split_strategy permutation_6_600 --task_max_length 6 --function_type uniform
 # Generate data for within-k and cross-k evaluation with identity functions as task max length=7
 # for prompt_length in "fixed"; do
 #     echo "Generating data for prompt_length: $prompt_length"
 #     for k in {1..6}; do
 #         echo "Generating data for combination_$k"
-#         python -m scripts.generate_data --prompt_length $prompt_length --split_strategy combination_$k --n_functions 6 --task_max_length 7 --n_alphabets 26 --seq_len 6 --functions_type uniform
-#         python -m scripts.generate_data --prompt_length $prompt_length --split_strategy combination_$k --n_functions 6 --task_max_length 7 --n_alphabets 26 --seq_len 6 --functions_type diverse
-        
+#         python -m scripts.generate_data --prompt_length $prompt_length --split_strategy combination_$k --task_max_length 7 --functions_type uniform
 #     done
 # done
 
 # # Generate data for within-k evaluation without identity functions (as task max length=k)
-# for function_type in "uniform" "diverse"; do
-#     echo "Generating data for function_type: $function_type"
-#     for k in {2..6}; do
-#         echo "Generating data for combination_$k"
-        
-#         python3 -m scripts.generate_data --split_strategy combination_$k --task_max_length $k --function_type $function_type
-#     done
-# done
+for function_type in "uniform"; do
+    echo "Generating data for function_type: $function_type"
+    for k in {2..6}; do
+        echo "Generating data for combination_$k"
+        python3 -m scripts.generate_data --split_strategy combination_$k --task_max_length $k --function_type $function_type
+    done
+done
 
 
 # python3 -m scripts.generate_data --split_strategy combination_6 --task_max_length 6 --function_type diverse

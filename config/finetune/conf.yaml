@@ -9,9 +9,9 @@ model_name: "gemma1"
 function_type: "diverse"
 device : "cuda"
 bf16: True
-epochs: 10
-data_path: "/scratch4/workspace/ppruthi_umass_edu-CG/task_based_compositional_generalization/data/diverse/fixed/nalph_26_seqlen_6_fnlen_6_taskmaxlen_6/direct/disjoint7_6_60"
-output_dir: "/scratch4/workspace/ppruthi_umass_edu-CG/task_based_compositional_generalization/models/ckpts/diverse/fixed/nalph_26_seqlen_6_fnlen_6_taskmaxlen_6/direct/disjoint7_6_60/gemma1"
+epochs: 5
+data_path: "/scratch/workspace/ppruthi_umass_edu-MI/task_based_compositional_generalization/data/diverse/fixed/nalph_26_seqlen_6_fnlen_6_taskmaxlen_6/direct/disjoint7_6_60"
+output_dir: "/scratch/workspace/ppruthi_umass_edu-MI/task_based_compositional_generalization/models/ckpts/diverse/fixed/nalph_26_seqlen_6_fnlen_6_taskmaxlen_6/direct/disjoint7_6_60/gemma1"
 prompt_mode: "direct"
 train_split: "disjoint7_6_60"
 task_max_length: 6

@@ -19,6 +19,7 @@ from src.utils.storage_utils import get_directory_path
 from init import ROOT_DIR
 from src.data.loaders import get_data_loader, SyntheticDataset, MappedSyntheticDataset
 from torch.utils.data import DataLoader
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 @dataclass
 class Metrics:
@@ -42,48 +43,42 @@ class Evaluator:
         self.token_mgr = TokenManager(load_path=cfg.data_path)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    def get_pretrained_model_class(self, model_name):
-        if model_name == "llama3":
-            model, tokenizer, config = load_llama3_8b()
-        elif model_name == "gpt2":
-            model, tokenizer, config = load_gpt_oss_20b()
-        elif model_name == "granite":
-            model, tokenizer, config = load_granite_2b()
-        elif model_name == "gemma1":
-            model, tokenizer, config = load_gemma_1b()
-        else:
-            raise ValueError(f"Model {model_name} not supported")
-        return model, tokenizer, config
+
+    def load_pretrained_model_with_extended_embeddings(self, fname, latest_iter):
+        save_path = os.path.dirname(fname)
+        model_dir = save_path + "/pretrained_model_" + str(latest_iter)
+        tokenizer_dir = save_path + "/tokenizer_" + str(latest_iter)
         
-    
-    def load_net(self, fname):
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_dir)
+        self.model = AutoModelForCausalLM.from_pretrained(model_dir)
+        self.metadata = torch.load(fname)
+        self.token_map = self.metadata["token_map"]
+        self.token_mgr.map_tokens(self.token_map, self.tokenizer)
+        # set model to device
+        self.model.to(self.device)
+        self.logger.info(f"Token map: {self.token_map}")
+        self.logger.info(f"Token manager Tokens: {self.token_mgr.token}")
+        self.logger.info(f"Token manager Token indices: {self.token_mgr.token_idx}")
+        
+        
+        
+    def load_nanogpt_model(self, fname):
         ckpt = torch.load(fname, weights_only=False, map_location=self.device)
         self.net_cfg = ckpt["config"]
-        # load token map if it is present
         if "token_map" in ckpt:
             self.token_map = ckpt["token_map"]
         else:
             self.token_map = None
-        
-        # get model class based on the model name and pretrained flag
-        if self.cfg.pretrained:
-            model, tokenizer, config = self.get_pretrained_model_class(self.net_cfg.model_name)
-
-            self.model = model
-            self.logger.info(f"Token manager Original Tokens: {self.token_mgr.token}")
-            self.logger.info(f"Token manager Original Token indices: {self.token_mgr.token_idx}")
-            self.token_mgr.map_tokens(self.token_map, tokenizer)
-            self.logger.info(f"Token map: {self.token_map}")
-            self.logger.info(f"Token manager Tokens: {self.token_mgr.token}")
-            self.logger.info(f"Token manager Token indices: {self.token_mgr.token_idx}")
-            # resize token embeddings to match the token manager
-            
-        else:
-            self.model = nanoGPT(self.net_cfg.net)
-
-        
+        self.model = nanoGPT(self.net_cfg.net)
         self.model.load_state_dict(ckpt["net"])
 
+    
+    def load_net(self, latest_iter, fname):
+        if not self.cfg.pretrained:
+            self.load_nanogpt_model(fname)
+        else:
+            self.load_pretrained_model_with_extended_embeddings(fname, latest_iter)
+       
     
     def load_dataloaders(self):
         loaders = {}
@@ -105,9 +100,10 @@ class Evaluator:
         all_files = [os.path.join(ckpt_dir, file) for file in all_files if file.endswith(".pt")]
         all_ckpt_files = [(itr(file), file) for file in all_files]
         all_ckpt_files = sorted(all_ckpt_files)
-        print(ckpt_dir)
-        print(all_ckpt_files)
-        return all_ckpt_files[-1]
+        if self.cfg.eval_for_training:
+            return all_ckpt_files
+        else:
+            return [(all_ckpt_files[-1])]
         
     
     def create_uniform_sampler(self, dataset, per_sample_count=None):
@@ -158,7 +154,8 @@ class Evaluator:
         # sample = "".join(sample)
         
         for _ in range(new_length):
-            logits = model(inputs).logits if self.cfg.pretrained else model(inputs)
+            
+            logits = model(input_ids=inputs).logits if self.cfg.pretrained else model(inputs)
             next_token = torch.argmax(logits[:, -1, :], -1, keepdims=True)
             inputs = torch.cat((inputs, next_token), dim=1)
         return inputs
@@ -272,32 +269,35 @@ class Evaluator:
                 verbose=False):
         
         # first load the latest checkpoint
-        ck, ckpt_file = self.get_latest_ckpt()
-        self.load_net(ckpt_file)
+        ckpts = self.get_latest_ckpt()
+        all_results = {}
+        for latest_iter, ckpt_file in ckpts:
+            self.load_net(latest_iter, ckpt_file)
 
-        # then load the dataloaders
-        dataloaders = self.load_dataloaders()
-        train_dataset = dataloaders["train"].dataset.data
-        train_dataloader = self.create_uniform_sampler(train_dataset)
-        train_dataloader = DataLoader(
-            train_dataset,
-            batch_size=self.cfg.data.batch_size,
-            sampler=train_dataloader,
-            num_workers=self.cfg.data.num_workers
-        )
-        
-        results = {}
-        
-        for split, dataloader in dataloaders.items():
-            self.logger.info(f"Evaluating {split} split...")
-            metrics, combination_ids_map = self.evaluate_dataloader(self.model, dataloader, split)
-            results[split] = metrics
+            # then load the dataloaders
+            dataloaders = self.load_dataloaders()
+            train_dataset = dataloaders["train"].dataset.data
+            train_dataloader = self.create_uniform_sampler(train_dataset)
+            train_dataloader = DataLoader(
+                train_dataset,
+                batch_size=self.cfg.data.batch_size,
+                sampler=train_dataloader,
+                num_workers=self.cfg.data.num_workers
+            )
+            
+            results = {}
+            
+            for split, dataloader in dataloaders.items():
+                self.logger.info(f"Evaluating {split} split...")
+                metrics, combination_ids_map = self.evaluate_dataloader(self.model, dataloader, split)
+                results[split] = metrics
 
-            if verbose:
-                
-                self._log_detailed(split, metrics, ck, combination_ids_map)
-        
-        return results
+                if verbose:
+                    
+                    self._log_detailed(split, metrics, latest_iter, combination_ids_map)
+            
+            all_results[latest_iter] = results
+        return all_results
     
     def _log_detailed(self, split, metrics: Metrics, ck, combination_ids_map):
         """Log detailed evaluation results."""
@@ -332,12 +332,13 @@ class Evaluator:
         return output_dir
     
     def save_results(self, results: Dict[str, Metrics]):
-        output_dir = self.get_output_dir()
-        output_path = os.path.join(output_dir, "accs.pkl")
-        with open(output_path, 'wb') as f:
-            pickle.dump(results, f)
-        
-        self.logger.info(f"Saved results to: {output_path}")
+        for latest_iter, results in results.items():
+            output_dir = self.get_output_dir()
+            output_path = os.path.join(output_dir, f"accs_{latest_iter}.pkl")
+            with open(output_path, 'wb') as f:
+                pickle.dump(results, f)
+            
+            self.logger.info(f"Saved results to: {output_path}")
 
     def _log_predictions(self, split, inputs, outputs):
         """Log input/prediction pairs for debugging with colored error highlighting"""

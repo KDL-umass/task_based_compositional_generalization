@@ -76,7 +76,7 @@ def move_to_device(dat, targets, device):
     return dat, targets
 
 # Logging functions
-def save_model(cfg, net, optimizer, it, fdir, token_map=None):
+def save_model(cfg, net, optimizer, it, fdir, token_map=None, tokenizer=None):
     checkpoint = {
         "net": net.state_dict(),
         "optimizer": optimizer.state_dict(),
@@ -86,9 +86,36 @@ def save_model(cfg, net, optimizer, it, fdir, token_map=None):
     # add token map if it is not None
     if token_map is not None:
         checkpoint["token_map"] = token_map
+    if tokenizer is not None:
+        checkpoint["tokenizer"] = tokenizer
     fname = os.path.join(fdir, "ckpt_" + str(it + 1) + ".pt")
     torch.save(checkpoint, fname)
 
+def save_model_pretrained(cfg, pretrained_model, optimizer, it, fdir, token_map=None, tokenizer=None):
+    # save pretrained model with extended tokenizer
+    model_dir = fdir + "/pretrained_model_" + str(it + 1)
+    tokenizer_dir = fdir + "/tokenizer_" + str(it + 1)
+    # create directories if they don't exist
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+    if not os.path.exists(tokenizer_dir):
+        os.makedirs(tokenizer_dir)
+    pretrained_model.save_pretrained(model_dir)
+    if tokenizer is not None:
+        tokenizer.save_pretrained(tokenizer_dir)
+    
+    checkpoint = {
+        "optimizer": optimizer.state_dict(),
+        "iter": it,
+        "config": cfg
+    }
+    if tokenizer is not None:
+        checkpoint["tokenizer"] = tokenizer
+    if token_map is not None:
+        checkpoint["token_map"] = token_map
+
+    torch.save(checkpoint, os.path.join(fdir, "metadata_" + str(it + 1) + ".pt"))
+    print(f"Saved model to {fdir}")
 
 def save_model_hooked_transformer(cfg, net, optimizer, it, fdir):
     checkpoint = {
@@ -116,8 +143,8 @@ def save_model_transformer_program(cfg, net, optimizer, fdir):
     torch.save(checkpoint, fname)
 
 
-def log_train(it, lr, train_loss):
-    print("train -- iter: %d, lr: %.6f, loss: %.4f" % (it, lr, np.mean(train_loss)))
+def log_train(it, lr, train_loss, logger=None):
+    logger.info("train -- iter: %d, lr: %.6f, loss: %.4f" % (it, lr, np.mean(train_loss)))
     return list()
 
 

@@ -1,17 +1,17 @@
 #!/bin/bash
-#SBATCH --time=2:00:00
+#SBATCH --time=8:00:00
 #SBATCH -c 8
 #SBATCH --mem=100GB
 #SBATCH -p gpu-preempt
 #SBATCH -G 1 # Number of GPUs
 #SBATCH --constraint vram40
 #SBATCH --nodes=1
-#SBATCH --job-name=evaluate_model_gemma1_disjoint7_6_0_diverse
-#SBATCH --output=./a_logs/evaluate_model_gemma1_disjoint7_6_0_diverse.out
-#SBATCH --error=./a_logs/evaluate_model_gemma1_disjoint7_6_0_diverse.err
+#SBATCH --job-name=evaluate_model_gemma_disjoint7_6_70_vram40
+#SBATCH --output=./a_logs/evaluate_gemma_disjoint7_6_70_vram40.out
+#SBATCH --error=./a_logs/evaluate_gemma_disjoint7_6_70_vram40.err
 
 module load conda/latest
-cd /scratch4/workspace/ppruthi_umass_edu-CG/task_based_compositional_generalization
+cd /scratch/workspace/ppruthi_umass_edu-MI/task_based_compositional_generalization
 conda activate CG
 
 N_ALPHABETS=26
@@ -23,15 +23,14 @@ NHEADS_NLAYERS="nh6_nl3"
 # set task max length to k in split strategy for without identity based train/test split
 python -m scripts.evaluate_model \
     --prompt_mode "direct" \
-    --train_split "disjoint7_6_0" \
-    --eval_split "disjoint7_6_0" \
+    --train_split "disjoint7_6_60" \
+    --eval_split "disjoint7_6_60" \
     --nheads_nlayers "$NHEADS_NLAYERS" \
-    --pos_embedding_type "rel_global" \
+    --pos_embedding_type "abs" \
     --function_type "diverse" \
     --task_max_length 6 \
     --seed 0 \
     --pretrained True
-    
 
 # # Command for representation analysis and equivalence class analysis to generate TSNE plots
 # # keep strings representation analysis to True 

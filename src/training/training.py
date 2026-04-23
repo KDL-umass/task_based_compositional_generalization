@@ -99,7 +99,7 @@ class Trainer:
         lr, it = 0.0, 0
         total_steps = len(train_loader) * self.cfg.epochs
         train_loss = []
-        
+        save_model(self.cfg, self.model, self.optimizer, it, fdir)
         
         self.logger.info(f"Total training steps: {total_steps}")
         self.logger.info(f"Learning rate warmup steps: {self.cfg.optimizer.warmup_iters}")
@@ -109,9 +109,10 @@ class Trainer:
                 if it % self.cfg.log.eval_interval == 0:
                     eval_info = self.evaluate(loaders, device_info, sep_pos)
                     log_eval(it, lr, eval_info, logger=self.logger)
+                    save_model(self.cfg, self.model, self.optimizer, it, fdir)
 
                 elif it % self.cfg.log.log_interval == 0:
-                    train_loss = log_train(it, lr, train_loss)
+                    train_loss = log_train(it, lr, train_loss, logger=self.logger)
 
                 # Update LR
                 it, lr = update_cosine_warmup_lr(

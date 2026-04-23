@@ -4,17 +4,17 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem 100GB
 #SBATCH --cpus-per-task 4
-#SBATCH --job-name=train_model_3
-#SBATCH --output=./a_logs/train_model_3.out
-#SBATCH --error=./a_logs/train_model_3.err
+#SBATCH --job-name=train_model_combination_2_uniform
+#SBATCH --output=./a_logs/train_model_combination_2_uniform.out
+#SBATCH --error=./a_logs/train_model_combination_2_uniform.err
 module load conda/latest
-cd /scratch4/workspace/ppruthi_umass_edu-CG/task_based_compositional_generalization
+cd /scratch/workspace/ppruthi_umass_edu-MI/task_based_compositional_generalization
 conda activate CG
 
 PROMPT_LENGTHS=("fixed")
 PROMPT_MODES=("direct")
-POS_EMBEDDING_TYPES=("rel_global")
-FUNCTION_TYPES=("diverse")
+POS_EMBEDDING_TYPES=("abs")
+FUNCTION_TYPES=("uniform")
 
 
 EPOCHS=100
@@ -24,7 +24,7 @@ N_FUNCTIONS=6
 NHEADS_NLAYERS="nh6_nl3"
 SEEDS=(0)
 
-TRAIN_SPLIT_STRATEGIES=("combination_3")
+TRAIN_SPLIT_STRATEGIES=("combination_2")
 
 # task max length is k_max and gets k from the split strategy without identity modules. Fix task_max_length to 7 for identity-based train/test split
 echo "=== TRAINING ==="

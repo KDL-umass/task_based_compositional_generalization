@@ -53,6 +53,7 @@ if __name__ == "__main__":
     
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--pretrained", type=bool, default=False)
+    parser.add_argument("--eval_for_training", type=bool, default=False)
     args = parser.parse_args()
 
     # over-ride some of the arguments based on the run-time args
@@ -72,4 +73,5 @@ if __name__ == "__main__":
     cfg.task_max_length = args.task_max_length
     cfg.data_path = get_directory_path(cfg, key='data', prefix_dir='data')
     cfg.data_path = os.path.join(cfg.data_path, cfg.prompt_mode, cfg.train_split)
+    cfg.eval_for_training = args.eval_for_training
     main(cfg)

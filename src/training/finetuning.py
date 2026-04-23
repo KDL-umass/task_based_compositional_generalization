@@ -4,7 +4,7 @@ import os
 from src.data.corpus_generator.token_manager import TokenManager
 from src.data.loaders import get_data_loader, MappedSyntheticDataset
 from src.models.pretrained import load_llama3_8b, load_gpt_oss_20b, load_granite_2b, load_gemma_1b
-from src.training.utils import configure_optimizers, move_to_device, update_cosine_warmup_lr, log_train, log_eval, save_model
+from src.training.utils import configure_optimizers, move_to_device, update_cosine_warmup_lr, log_train, log_eval, save_model_pretrained
 from src.utils.storage_utils import get_directory_path
 
 class FineTuner:
@@ -33,7 +33,7 @@ class FineTuner:
         # check if token has mapping in model tokenizer
         for token, idx in self.dictionary.token_idx.items():
             model_token_to_idx = self.tokenizer.convert_tokens_to_ids(token)
-            if model_token_to_idx is not None and token not in ["map1", "map2", "map3", "map4", "map5", "map6"]:
+            if model_token_to_idx is not None and token not in ["map1", "map2", "map3", "map4", "map5", "map6"] and model_token_to_idx != 3:
                 self.token_map[idx] = model_token_to_idx
             else:
                 additional_tokens.append(token)
@@ -102,15 +102,17 @@ class FineTuner:
     def training_loop(self):
         # first load the model and tokenizer
         if self.cfg.finetune_from_ckpt:
-            ck, latest_ckpt = self.get_latest_ckpt()
+            it, latest_ckpt = self.get_latest_ckpt()
             self.logger.info(f"Loading checkpoint from {latest_ckpt}")
             self.load_net(latest_ckpt)
+            lr_ckpt, iter_ckpt = 0.0, it
         else:
             self.load_model_and_tokenizer()
             self.logger.info(f"Loading model and tokenizer from scratch")
             # then load the dictionary and resize the tokenizer
             self.load_dictionary_and_resize_tokenizer()
-            ck = 0
+            lr_ckpt, iter_ckpt = 0.0, 0
+
         # then load the dataloaders after the tokenizer is resized
         loaders = self.load_dataloaders()
         train_loader = loaders[0]
@@ -121,20 +123,21 @@ class FineTuner:
         self.seq_info = self.dictionary.get_seq_info(sample, self.cfg.function_type)
         # then configure the optimizers
         self.optimizer = configure_optimizers(self.model, self.cfg.optimizer)
-        self.train(train_loader, loaders, ck)
+        self.train(train_loader, loaders, lr_ckpt, iter_ckpt)
 
-    def train(self, train_loader, loaders, iter_ckpt):
+    def train(self, train_loader, loaders, lr_ckpt, iter_ckpt):
         # set the model to training mode
         self.model.train()
         # set the device and data type
         dt = torch.bfloat16 if self.cfg.bf16 else torch.float32
         device_info = (self.cfg.device, dt)
         # initialize the learning rate and iteration
-        lr, it = 0.0, 0.0
+        lr, it = lr_ckpt, iter_ckpt
         # calculate the total number of steps
         total_steps = len(train_loader) * self.cfg.epochs
         train_loss = []
         # start the training loop
+        save_model_pretrained(self.cfg, self.model, self.optimizer, it, self.get_output_dir(), self.token_map, self.tokenizer)
         for epoch in range(self.cfg.epochs):
             for dat, targets, elems in train_loader:
                 
@@ -162,7 +165,7 @@ class FineTuner:
 
                 # if it is time to log the training loss
                 if it % self.cfg.log.log_interval == 0:
-                    log_train(it, lr, train_loss)
+                    log_train(it, lr, train_loss, logger=self.logger)
 
                 # if it is time to evaluate
                 if it % self.cfg.log.eval_interval == 0:
@@ -170,13 +173,13 @@ class FineTuner:
                     log_eval(it, lr, eval_info, logger=self.logger)
 
                 if it % 100000 == 0:
-                    save_model(self.cfg, self.model, self.optimizer, it, self.get_output_dir(), self.token_map)
+                    save_model_pretrained(self.cfg, self.model, self.optimizer, it, self.get_output_dir(), self.token_map, self.tokenizer)
                 
 
         # log the final evaluation metrics
         eval_info = self.evaluate(loaders[1:], device_info)
         log_eval(it, lr, eval_info, logger=self.logger)
-        save_model(self.cfg, self.model, self.optimizer, it, self.get_output_dir(), self.token_map)
+        save_model_pretrained(self.cfg, self.model, self.optimizer, it, self.get_output_dir(), self.token_map, self.tokenizer)
 
     @torch.no_grad()
     def _predict(self, inputs, new_length):
