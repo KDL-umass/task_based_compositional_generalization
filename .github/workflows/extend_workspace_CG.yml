@@ -1,0 +1,25 @@
+name: Extend Unity Workspace CG
+
+on:
+  schedule:
+    # Runs on the 17th of every month at 09:00 UTC (3 days before ~20th expiry)
+    - cron: '0 9 17 * *'
+  workflow_dispatch: # allow manual trigger
+
+jobs:
+  extend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.UNITY_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H unity.rc.umass.edu >> ~/.ssh/known_hosts
+
+      - name: Extend workspace MI
+        run: |
+          ssh -o StrictHostKeyChecking=yes \
+              ppruthi_umass_edu@unity.rc.umass.edu \
+              "bash /home/ppruthi_umass_edu/extend_workspace_CG.sh"
+
